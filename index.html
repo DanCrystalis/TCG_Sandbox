@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCG Sandbox</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- JSZip for ZIP handling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+
+<body>
+    <div id="app-container">
+        <button id="prev-bg" class="bg-control-button" title="Previous Background">←</button>
+        <label class="bg-label">Change Background</label>
+        <button id="next-bg" class="bg-control-button" title="Next Background">→</button>
+        <!-- Landing Page Section -->
+        <section id="landing-page" class="page active-page">
+            <header>
+                <h1>TCG Sandbox </h1>
+            </header>
+            <footer>
+                <p class="instructions">
+                    Welcome! Enter your name, then host a new game or join an existing one.
+                    No game rules are enforced. Manage everything manually with your friends.
+                </p>
+            </footer>
+            <main>
+                <div class="input-group">
+                    <label for="playerNameInput">Enter Your Display Name:</label>
+                    <input type="text" id="playerNameInput" value="Player X">
+                </div>
+                <button id="hostGameButton">Host New Game</button>
+                <div class="join-game-form">
+                    <h3>Join Existing Game</h3>
+                    <div class="input-group">
+                        <label for="gameCodeInput">Enter Game Code:</label>
+                        <input type="text" id="gameCodeInput">
+                    </div>
+                    <button id="joinGameButton">Join Game</button>
+                </div>
+            </main>
+            <footer>
+                <p class="instructions">
+                    May fate be in your hands.
+                </p>
+            </footer>
+        </section>
+
+        <!-- Lobby / Pre-Game Setup Section -->
+        <section id="lobby-page" class="page active-page">
+            <header>
+                <h1>Game Lobby
+                </h1>
+                <div id="sessionInfo">
+                    <p>Game Code: <strong id="gameCodeDisplay">---</strong></p>
+                    <p>Share this link: <input type="text" id="shareLinkDisplay" readonly value="---"></p>
+                </div>
+            </header>
+            <main class="lobby-main-content">
+                <div id="playerManagementArea">
+                    <h2>Players in Lobby (<span id="playerCountDisplay">0</span>/<span
+                            id="maxPlayerCountDisplay">4</span>)</h2>
+                    <!-- Assuming max players might be dynamic or set elsewhere -->
+                    <ul id="playerList">
+                        <!-- Player items will be added here by JS -->
+                    </ul>
+                </div>
+
+                <div id="deckUploadSection">
+                    <h2>Your Deck <span id="deckStatusIndicator">(Awaiting Upload)</span></h2>
+                    <div id="deckUploadArea" class="deck-upload-controls">
+                        <p>Upload your deck (all images should be card faces):</p>
+                        <div class="deck-upload-options">
+                            <div class="upload-method">
+                                <label for="zipUploadInput" class="upload-button-label">Upload .ZIP File</label>
+                                <input type="file" id="zipUploadInput" accept=".zip" style="display: none;">
+                            </div>
+                            <div class="upload-method">
+                                <label for="batchImageUploadInput" class="upload-button-label">Upload Batch
+                                    Images</label>
+                                <input type="file" id="batchImageUploadInput"
+                                    accept="image/png, image/jpeg, image/jpg, image/webp, image/gif, image/svg+xml, image/bmp, image/tiff, image/ico, image/heic, image/heif, image/avif"
+                                    multiple style="display: none;">
+                            </div>
+                        </div>
+                        <div id="dropZone" class="drop-zone">
+                            <p>Or Drag & Drop .ZIP or Image Files Here</p>
+                        </div>
+                    </div>
+
+                    <div id="deckPreviewContainer">
+                        <h3>Deck Preview (<span id="cardCountDisplay">0</span> cards)</h3>
+                        <div id="deckPreviewArea" class="deck-preview-grid">
+                            <p class="placeholder-text">No cards uploaded yet. Uploaded card thumbnails will appear
+                                here.</p>
+                        </div>
+                    </div>
+                    <button id="confirmDeckButton" class="action-button" disabled>Confirm Deck</button>
+                    <button id="clearDeckButton" class="action-button secondary-button" style="display: none;">Upload
+                        Different Deck</button>
+                </div>
+            </main>
+            <footer>
+                <button id="startGameButton" class="action-button" disabled>Start Game (Host Only)</button>
+            </footer>
+        </section>
+        <!-- Game Board Section -->
+        <section id="game-board-page" class="page">
+            <header>
+                <div id="gameInfo">
+                    <p>Playing in Game: <strong id="boardGameCodeDisplay">---</strong></p>
+                    <h1>TCG Sandbox</h1>
+                    <div class="game-controls">
+                        <button id="fullscreenButton" class="action-button" title="Toggle Fullscreen">⛶</button>
+                        <button id="leaveGameButton" class="action-button secondary-button">Leave Game</button>
+                    </div>
+                </div>
+            </header>
+            <main id="game-table">
+                <!-- Player areas will be dynamically generated here -->
+            </main>
+            <footer>
+                <p>Game in progress. All actions are manual.</p>
+            </footer>
+        </section>
+
+
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
