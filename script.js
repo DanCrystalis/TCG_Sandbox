@@ -57,17 +57,17 @@ document.addEventListener('DOMContentLoaded', () => {
         isHost: false,
         deck: [],
         deckConfirmed: false,
-        life: 22 // Default starting life
+        life: 22, // Default starting life
+        energy: 0
     };
 
     let gameSession = {
         code: null,
         players: [],
-        maxPlayers: 4, // Example max players
+        maxPlayers: 4,
         gameStarted: false
     };
 
-    // Background cycling functionality
     const backgroundImages = [
         'bg/bg1.jpg',
         'bg/bg2.jpg',
@@ -91,7 +91,24 @@ document.addEventListener('DOMContentLoaded', () => {
         'bg/bg20.jpg',
         'bg/bg21.jpg',
         'bg/bg22.jpg',
-        'bg/bg23.jpg'
+        'bg/bg23.jpg',
+        'bg/bg24.jpg',
+        'bg/bg25.jpg',
+        'bg/bg26.jpg',
+        'bg/bg27.jpg',
+        'bg/bg28.jpg',
+        'bg/bg29.jpg',
+        'bg/bg30.jpg',
+        'bg/bg31.jpg',
+        'bg/bg32.jpg',
+        'bg/bg33.jpg',
+        'bg/bg34.jpg',
+        'bg/bg35.jpg',
+        'bg/bg36.jpg',
+        'bg/bg37.jpg',
+        'bg/bg38.jpg',
+        'bg/bg39.jpg',
+        'bg/bg40.jpg',
     ];
 
     let currentBgIndex = 0;
@@ -216,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (typeof playerData.life === 'undefined') {
-            playerData.life = 20; // Default life
+            playerData.life = 22;
         }
 
         const existingPlayerIndex = gameSession.players.findIndex(p => p.id === playerData.id);
@@ -230,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializeLobby(isHost) {
         currentPlayer.isHost = isHost;
-        currentPlayer.life = 20; // Reset/set life on lobby init
+        currentPlayer.life = 22;
 
         if (isHost) {
             gameSession.code = generateGameCode();
@@ -241,7 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // It would be populated by a "server" or host's broadcast in a real app.
             // For this sandbox, if gameSession.players is empty and we join, it'll just be us.
         }
-
 
         if (!addPlayerToSession({ ...currentPlayer, deck: currentPlayer.deck || [], deckConfirmed: currentPlayer.deckConfirmed || false })) {
             gameSession.code = null; // Failed to add current player
@@ -285,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (gameSession.players.length < gameSession.maxPlayers && currentPlayer.isHost) {
                         const botBobDeck = Array(30).fill(0).map((_, i) => ({ id: `bot_bob_card_${i}`, imageDataUrl: `https://via.placeholder.com/63x88/ADD8E6/000000?text=Bob${i + 1}`, fileName: `bob_card_${i + 1}.png` }));
                         addPlayerToSession({
-                            id: `bot_bob_${Date.now()}`, name: 'Bot Bob', isHost: false, deck: botBobDeck, deckConfirmed: true, life: 20
+                            id: `bot_bob_${Date.now()}`, name: 'Bot Bob', isHost: false, deck: botBobDeck, deckConfirmed: true, life: 22
                         });
                         updateLobbyUI();
                     }
@@ -315,12 +331,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // "hosted" by this client's gameSession, we effectively start a new local session context.
             // A real app would fetch game state for 'code' from a server.
             if (!gameSession.code || gameSession.code !== code) {
-                gameSession.players = []; // Reset players for this new "joined" game context
-                // Optionally, one could try to simulate finding other players if this were P2P,
-                // but for a simple sandbox, the player joins an "empty" game by this code,
-                // or a game the host (if it's this client on another tab) has set up.
+                gameSession.players = [];
             }
-            initializeLobby(false); // Current player attempts to join
+            initializeLobby(false);
         });
     }
 
@@ -371,18 +384,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const playerInSession = gameSession.players.find(p => p.id === currentPlayer.id);
         if (playerInSession) {
-            playerInSession.deck = currentPlayer.deck; // Update deck in gameSession
-            playerInSession.deckConfirmed = false; // New deck means it needs re-confirmation
+            playerInSession.deck = currentPlayer.deck;
+            playerInSession.deckConfirmed = false;
         }
-        currentPlayer.deckConfirmed = false; // Reset confirmation status
-        updateLobbyUI();
+        currentPlayer.deckConfirmed = false; +
+            updateLobbyUI();
     }
 
     function renderDeckPreview() {
         if (!deckPreviewArea || !cardCountDisplay || !confirmDeckButton) return;
         deckPreviewArea.innerHTML = '';
         if (currentPlayer.deck.length === 0) {
-            deckPreviewArea.innerHTML = '<p class="placeholder-text">No cards uploaded yet. Drag & drop images or a ZIP file, or use the buttons.</p>';
             cardCountDisplay.textContent = '0';
             confirmDeckButton.disabled = true;
             return;
@@ -418,14 +430,12 @@ document.addEventListener('DOMContentLoaded', () => {
             processFilesForDeck(event.dataTransfer.files);
         }, false);
     }
-    // Prevent body defaults for drag/drop to ensure dropZone gets priority
     ['dragenter', 'dragover', 'drop'].forEach(eventName => {
         document.body.addEventListener(eventName, preventDefaults, false);
     });
     document.body.addEventListener('dragleave', (e) => {
         // Only prevent if not related to an actual drop zone
         if (e.target === document.body || !e.relatedTarget || !e.relatedTarget.closest('#dropZone')) {
-            // No action or specific logic needed here for body dragleave unless you want body-wide visual feedback
         }
     }, false);
 
@@ -437,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const playerInSession = gameSession.players.find(p => p.id === currentPlayer.id);
             if (playerInSession) {
                 playerInSession.deckConfirmed = true;
-                playerInSession.deck = currentPlayer.deck; // Ensure session has the confirmed deck
+                playerInSession.deck = currentPlayer.deck;
             }
             updateLobbyUI();
         });
@@ -459,7 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerInSession.deckConfirmed = false;
                 playerInSession.deck = [];
             }
-            if (zipUploadInput) zipUploadInput.value = ''; // Reset file input
+            if (zipUploadInput) zipUploadInput.value = '';
             if (batchImageUploadInput) batchImageUploadInput.value = ''; // Reset file input
             renderDeckPreview();
             updateLobbyUI();
@@ -473,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const allPlayersReady = gameSession.players.length > 0 && gameSession.players.every(p => p.deckConfirmed);
-            const enoughPlayers = gameSession.players.length >= 1; // Min 1 player
+            const enoughPlayers = gameSession.players.length >= 1;
 
             if (!enoughPlayers) {
                 alert("Not enough players to start. Minimum is 1.");
@@ -499,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-                
+
                 [playerDecksState, playerHandsState, playerDiscardsState, playerPlayZonesState].forEach(stateObject => {
                     Object.values(stateObject).forEach(cardArray => {
                         if (Array.isArray(cardArray)) {
@@ -514,29 +524,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 currentPlayer.deck = [];
                 currentPlayer.deckConfirmed = false;
-                currentPlayer.isHost = false; 
-                // currentPlayer.name and .id can persist for re-entry
+                currentPlayer.isHost = false;
 
-                // Reset game session state (client-side perspective)
                 gameSession.gameStarted = false;
                 gameSession.code = null;
                 gameSession.players = [];
 
-                // Reset game state variables
                 playerDecksState = {};
                 playerHandsState = {};
                 playerDiscardsState = {};
                 playerPlayZonesState = {};
                 globalTokenCounter = 0;
 
-                // Update UI
+
                 if (gameCodeDisplay) gameCodeDisplay.textContent = "---";
                 if (shareLinkDisplay) shareLinkDisplay.value = "---";
                 if (playerListUl) playerListUl.innerHTML = '';
                 if (deckPreviewArea) deckPreviewArea.innerHTML = '<p class="placeholder-text">No cards uploaded yet. Drag & drop images or a ZIP file, or use the buttons.</p>';
                 if (cardCountDisplay) cardCountDisplay.textContent = '0';
                 if (confirmDeckButton) confirmDeckButton.disabled = true;
-                if (gameTable) gameTable.innerHTML = ''; // Clear game board
+                if (gameTable) gameTable.innerHTML = '';
 
                 showPage('landing-page');
                 updateLobbyUI();
@@ -545,14 +552,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.addEventListener('beforeunload', (event) => {
-        // This is a best-effort cleanup.
         if (gameSession.gameStarted || (currentPlayer.deck && currentPlayer.deck.length > 0)) {
-            // Optionally, provide a confirmation dialog
-            // event.preventDefault(); // Standard for 'beforeunload'
-            // event.returnValue = 'Changes you made may not be saved.'; // For older browsers
         }
 
-        // Revoke URLs to prevent memory leaks from unclosed game sessions
         if (currentPlayer.deck) {
             currentPlayer.deck.forEach(card => {
                 if (card.imageDataUrl && card.imageDataUrl.startsWith('blob:')) {
@@ -598,33 +600,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add dragstart event listener to set up data transfer
         cardDiv.addEventListener('dragstart', (event) => {
+            document.body.classList.add('is-dragging');
             cardDiv.classList.add(DRAGGING_CLASS);
             const sourcePlayerId = cardDiv.closest('.player-area')?.dataset.playerId;
             const sourceZoneType = cardDiv.closest('.zone')?.dataset.zoneType;
-            
+
             if (!sourcePlayerId || !sourceZoneType) {
                 console.error("Could not determine source player or zone for drag:", cardDiv);
                 event.preventDefault();
                 return;
             }
 
-            // Create a clone of the card for the drag image
+            // Create a clone of the card for the drag image, ensuring it's upright
             const dragImage = cardDiv.cloneNode(true);
             dragImage.style.position = 'absolute';
             dragImage.style.top = '-1000px';
-            dragImage.style.width = '189px';
-            dragImage.style.height = '264px';
+            // Remove transform classes to get an upright image for correct dimension reading
+            dragImage.classList.remove('tapped', 'rotated-180', 'dragging');
             dragImage.style.transform = 'none';
             dragImage.style.opacity = '0.8';
             document.body.appendChild(dragImage);
+            dragImage.offsetHeight;
 
-            // Set the drag image to be centered on the cursor
-            const rect = cardDiv.getBoundingClientRect();
-            event.dataTransfer.setDragImage(dragImage, rect.width / 2, rect.height / 2);
+            // Get the actual dimensions of the upright clone
+            const dragImageWidth = dragImage.offsetWidth;
+            const dragImageHeight = dragImage.offsetHeight;
+
+            // Set the drag image and center the cursor on it
+            event.dataTransfer.setDragImage(dragImage, dragImageWidth / 2, dragImageHeight / 2);
 
             // Remove the temporary element after drag starts
             setTimeout(() => {
-                document.body.removeChild(dragImage);
+                if (dragImage.parentNode) {
+                    document.body.removeChild(dragImage);
+                }
             }, 0);
 
             const transferData = {
@@ -642,6 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         cardDiv.addEventListener('dragend', () => {
+            document.body.classList.remove('is-dragging');
             cardDiv.classList.remove(DRAGGING_CLASS);
         });
 
@@ -671,7 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add hover event listeners for zoom preview positioning
         cardDiv.addEventListener('mousemove', (event) => {
             if (cardDiv.dataset.isFacedown === 'true') return;
-            
+
             const zoomPreview = cardDiv.querySelector('.zoom-preview');
             if (!zoomPreview) return;
 
@@ -689,7 +699,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // LEFT CLICK: Tap/Untap
         cardDiv.addEventListener('click', (event) => {
             console.log(`Card ${cardDiv.dataset.cardId} left-clicked`);
-            if (cardDiv.classList.contains(DRAGGING_CLASS) || event.button !== 0) return; 
+            if (cardDiv.classList.contains(DRAGGING_CLASS) || event.button !== 0) return;
+
+            // Check if card is in hand zone or discard zone
+            const zone = cardDiv.closest('.zone');
+            if (zone && (zone.dataset.zoneType === 'hand' || zone.dataset.zoneType === 'discard')) return;
+
             const isTapped = cardDiv.dataset.isTapped === 'true';
             const newTappedState = !isTapped;
             cardDiv.classList.toggle('tapped', newTappedState);
@@ -723,9 +738,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // RIGHT CLICK: Context menu
         cardDiv.addEventListener('contextmenu', (event) => {
+            // If card is in discard, do nothing and let the event bubble up to the discard zone's handler.
+            if (cardDiv.closest('.discard-zone')) {
+                return;
+            }
+
             console.log(`Card ${cardDiv.dataset.cardId} right-clicked`);
             const actions = [
-                { 
+                {
                     text: 'Flip Card',
                     action: () => {
                         const isFacedown = cardDiv.dataset.isFacedown === 'true';
@@ -735,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log(`Card ${cardDiv.dataset.cardId} flipped: ${newFacedownState}`);
                     }
                 },
-                { 
+                {
                     text: 'Add/Modify Counter',
                     action: () => {
                         const type = prompt("Enter counter type (e.g., +1/+1, DMG, LOYAL):")?.trim();
@@ -762,7 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch (e) { console.error("Error updating counters:", e); alert("Error processing counters."); }
                     }
                 },
-                { 
+                {
                     text: 'Remove Counter Type',
                     action: () => {
                         const countersCurrent = JSON.parse(cardDiv.dataset.counters || '[]');
@@ -788,7 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (confirm('Are you sure you want to remove this token?')) {
                             const playerId = cardDiv.closest('.player-area')?.dataset.playerId;
                             const zoneType = cardDiv.closest('.zone')?.dataset.zoneType;
-                            
+
                             if (playerId && zoneType) {
                                 // Remove from state
                                 const stateArray = playerPlayZonesState[playerId];
@@ -812,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             }
-            
+
             showContextMenu(event, actions);
         });
 
@@ -884,9 +904,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else if (zoneType === 'play') {
-            count = playerPlayZonesState[playerId]?.length || 0; 
+            count = playerPlayZonesState[playerId]?.length || 0;
 
-            const playZoneElem = playerAreaElement.querySelector(`#play-zone-${playerId}`); 
+            const playZoneElem = playerAreaElement.querySelector(`#play-zone-${playerId}`);
             if (playZoneElem) {
                 const row1Container = playZoneElem.querySelector(`#play-zone-${playerId}-row1`);
                 const row2Container = playZoneElem.querySelector(`#play-zone-${playerId}-row2`);
@@ -924,11 +944,17 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Player ${playerId} has no cards left to draw.`);
             return;
         }
-        const cardData = playerDecksState[playerId].shift(); 
+        const cardData = playerDecksState[playerId].shift();
         if (!cardData) {
             console.error("Tried to draw a card, but cardData was undefined."); return;
         }
         console.log(`drawCard - Player: ${playerId}, cardData being drawn:`, JSON.parse(JSON.stringify(cardData)));
+
+        // Ensure card is face up when drawn
+        cardData.isFacedown = 'false';
+        cardData.isTapped = 'false';
+        // Preserve 180 rotation if it was 180, otherwise set to 0
+        cardData.rotation = (cardData.rotation === '180') ? '180' : '0';
 
         if (!playerHandsState[playerId]) playerHandsState[playerId] = [];
         playerHandsState[playerId].push(cardData);
@@ -939,7 +965,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const handZoneContainer = handZone?.querySelector('.cards-in-zone-container');
             if (handZoneContainer) {
                 const placeholder = handZoneContainer.querySelector('.placeholder-text');
-                if (placeholder && playerHandsState[playerId].length >= 1) placeholder.remove(); 
+                if (placeholder && playerHandsState[playerId].length >= 1) placeholder.remove();
                 const cardElement = createCardElement(cardData, false);
                 handZoneContainer.appendChild(cardElement);
             }
@@ -968,7 +994,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const orderedPlayers = localPlayer ? [...otherPlayers, localPlayer] : [...otherPlayers];
 
         orderedPlayers.forEach(player => {
-            playerDecksState[player.id] = [...player.deck]; 
+            playerDecksState[player.id] = [...player.deck];
             playerHandsState[player.id] = [];
             playerDiscardsState[player.id] = [];
             playerPlayZonesState[player.id] = [];
@@ -1024,6 +1050,38 @@ document.addEventListener('DOMContentLoaded', () => {
             lifeCounterDiv.appendChild(increaseLifeButton);
             infoBar.appendChild(lifeCounterDiv);
 
+            // Add Energy Counter
+            const energyCounterDiv = document.createElement('div');
+            energyCounterDiv.className = 'life-counter energy-counter';
+            const energyDisplay = document.createElement('span');
+            energyDisplay.className = 'life-total';
+            energyDisplay.textContent = player.energy || 0;
+            energyDisplay.title = `${player.name}'s Energy`;
+            const decreaseEnergyButton = document.createElement('button');
+            decreaseEnergyButton.textContent = '−';
+            decreaseEnergyButton.className = 'life-button';
+            decreaseEnergyButton.addEventListener('click', () => {
+                if (!player.energy) player.energy = 0;
+                player.energy--;
+                const sessionP = gameSession.players.find(p => p.id === player.id);
+                if (sessionP) sessionP.energy = player.energy;
+                energyDisplay.textContent = player.energy;
+            });
+            const increaseEnergyButton = document.createElement('button');
+            increaseEnergyButton.textContent = '+';
+            increaseEnergyButton.className = 'life-button';
+            increaseEnergyButton.addEventListener('click', () => {
+                if (!player.energy) player.energy = 0;
+                player.energy++;
+                const sessionP = gameSession.players.find(p => p.id === player.id);
+                if (sessionP) sessionP.energy = player.energy;
+                energyDisplay.textContent = player.energy;
+            });
+            energyCounterDiv.appendChild(decreaseEnergyButton);
+            energyCounterDiv.appendChild(energyDisplay);
+            energyCounterDiv.appendChild(increaseEnergyButton);
+            infoBar.appendChild(energyCounterDiv);
+
             if (player.id === currentPlayer.id) {
                 const createTokenButton = document.createElement('button');
                 createTokenButton.textContent = 'Create Token';
@@ -1031,7 +1089,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 createTokenButton.addEventListener('click', () => {
                     const rowChoice = prompt("Place token in which row? (1 for Front, 2 for Back)", "1");
                     let targetRowContainer;
-                    let targetRowType; 
+                    let targetRowType;
 
                     if (rowChoice === "1") {
                         targetRowContainer = playerArea.querySelector(`#play-zone-${player.id}-row1`);
@@ -1039,10 +1097,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (rowChoice === "2") {
                         targetRowContainer = playerArea.querySelector(`#play-zone-${player.id}-row2`);
                         targetRowType = 'play-row2';
-                    } else if (rowChoice !== null) { 
+                    } else if (rowChoice !== null) {
                         alert("Invalid row choice. Token not created.");
                         return;
-                    } else { 
+                    } else {
                         return;
                     }
 
@@ -1059,14 +1117,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
 
                         if (!playerPlayZonesState[player.id]) playerPlayZonesState[player.id] = [];
-                        playerPlayZonesState[player.id].push(tokenData); 
+                        playerPlayZonesState[player.id].push(tokenData);
 
                         const tokenElement = createCardElement(tokenData, false);
                         const placeholder = targetRowContainer.querySelector('.placeholder-text');
                         if (placeholder) placeholder.remove();
                         targetRowContainer.appendChild(tokenElement);
 
-                        updateZoneCardCount(playerArea, 'play'); 
+                        updateZoneCardCount(playerArea, 'play');
                         console.log(`Token ${tokenId} created for player ${player.id} in ${targetRowType}`);
                     } else {
                         console.error(`Target row container not found for player ${player.id} to create token.`);
@@ -1084,24 +1142,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const mainZonesRow = document.createElement('div');
             mainZonesRow.className = 'main-zones-row';
 
-            // Play Zone - MODIFIED FOR TWO ROWS
+            // Play Zone
             const playZone = document.createElement('div');
             playZone.className = 'zone play-zone';
-            playZone.id = `play-zone-${player.id}`; 
-            playZone.dataset.zoneType = 'play'; 
-
-           // const playZoneLabel = document.createElement('div');
-           // playZoneLabel.className = 'zone-label';
-            //playZoneLabel.textContent = 'Play Area';
-          //  playZone.appendChild(playZoneLabel);
+            playZone.id = `play-zone-${player.id}`;
+            playZone.dataset.zoneType = 'play';
 
             const playZoneRow1 = document.createElement('div');
-            playZoneRow1.className = 'play-zone-row cards-in-zone-container'; 
+            playZoneRow1.className = 'play-zone-row cards-in-zone-container';
             playZoneRow1.id = `play-zone-${player.id}-row1`;
-            playZoneRow1.dataset.zoneType = 'play-row1'; 
-            playZoneRow1.dataset.ownerPlayerId = player.id; 
+            playZoneRow1.dataset.zoneType = 'play-row1';
+            playZoneRow1.dataset.ownerPlayerId = player.id;
             playZoneRow1.innerHTML = `<span class="placeholder-text">Manifest Row</span>`;
-            addDropZoneEventListeners(playZoneRow1, player.id, 'play-row1'); 
+            addDropZoneEventListeners(playZoneRow1, player.id, 'play-row1');
             playZone.appendChild(playZoneRow1);
 
             const playZoneRow2 = document.createElement('div');
@@ -1110,7 +1163,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playZoneRow2.dataset.zoneType = 'play-row2';
             playZoneRow2.dataset.ownerPlayerId = player.id;
             playZoneRow2.innerHTML = `<span class="placeholder-text">Aether Row</span>`;
-            addDropZoneEventListeners(playZoneRow2, player.id, 'play-row2'); 
+            addDropZoneEventListeners(playZoneRow2, player.id, 'play-row2');
             playZone.appendChild(playZoneRow2);
 
             mainZonesRow.appendChild(playZone);
@@ -1123,17 +1176,18 @@ document.addEventListener('DOMContentLoaded', () => {
             deckZone.id = `deck-zone-${player.id}`;
             deckZone.dataset.zoneType = 'deck';
             deckZone.title = "Click to draw a card, right-click for deck actions";
-            deckZone.innerHTML = `<div class="zone-label">Deck</div>`;
             deckZone.addEventListener('click', () => drawCard(player.id));
             addDeckManipulationMenu(deckZone, player.id);
+            addDropZoneEventListeners(deckZone, player.id, 'deck');
             sideZones.appendChild(deckZone);
 
             const discardZone = document.createElement('div');
             discardZone.className = 'zone discard-zone';
             discardZone.id = `discard-zone-${player.id}`;
             discardZone.dataset.zoneType = 'discard';
-            discardZone.innerHTML = `<div class="zone-label">Discard</div><div class="cards-in-zone-container stacked-cards-display"></div>`;
+            discardZone.innerHTML = `<div class="cards-in-zone-container stacked-cards-display"></div>`;
             addDropZoneEventListeners(discardZone, player.id, 'discard');
+            addDiscardPileManipulationMenu(discardZone, player.id);
             sideZones.appendChild(discardZone);
             mainZonesRow.appendChild(sideZones);
 
@@ -1151,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playerArea.appendChild(zonesLayout);
             gameTable.appendChild(playerArea);
 
-            
+
             updateZoneCardCount(playerArea, 'deck');
             updateZoneCardCount(playerArea, 'hand');
             updateZoneCardCount(playerArea, 'discard');
@@ -1180,7 +1234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
         }
 
-        let actualTargetZoneTypeForStateResolution = targetZoneType; 
+        let actualTargetZoneTypeForStateResolution = targetZoneType;
 
         if (targetZoneType === 'play-row1' || targetZoneType === 'play-row2') {
             actualTargetZoneTypeForStateResolution = 'play';
@@ -1190,14 +1244,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let targetArray;
 
-        switch (actualTargetZoneTypeForStateResolution) { 
+        switch (actualTargetZoneTypeForStateResolution) {
             case 'hand':
                 if (!playerHandsState[targetPlayerId]) {
                     playerHandsState[targetPlayerId] = [];
                 }
                 targetArray = playerHandsState[targetPlayerId];
                 break;
-            case 'play': 
+            case 'play':
                 if (!playerPlayZonesState[targetPlayerId]) {
                     playerPlayZonesState[targetPlayerId] = [];
                 }
@@ -1239,7 +1293,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'hand':
                 sourceArray = playerHandsState[sourcePlayerId];
                 break;
-            case 'play': 
+            case 'play':
                 sourceArray = playerPlayZonesState[sourcePlayerId];
                 break;
             case 'discard':
@@ -1267,6 +1321,97 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
+    // Helper function to insert card into DOM at a specific horizontal position
+    function insertCardIntoDOMZone(draggedElement, zoneContainer, dropX) {
+        let inserted = false;
+        // Iterate over children of the zone container (cards)
+        for (const child of zoneContainer.children) {
+            if (child === draggedElement || !child.classList || !child.classList.contains('card-on-board')) continue;
+
+            const rect = child.getBoundingClientRect();
+            // If the drop point's X coordinate is to the left of the center of the current child card
+            if (dropX < rect.left + rect.width / 2) {
+                zoneContainer.insertBefore(draggedElement, child);
+                inserted = true;
+                break;
+            }
+        }
+        // If not inserted before any child (e.g., dropped to the right of all cards or container is empty)
+        if (!inserted) {
+            zoneContainer.appendChild(draggedElement);
+        }
+    }
+
+    // Helper function to reorder the hand state array based on current DOM order
+    function reorderHandStateBasedOnDOM(playerId) {
+        const playerAreaElement = document.getElementById(`player-area-${playerId}`);
+        if (!playerAreaElement) return;
+        const handZoneContainer = playerAreaElement.querySelector(`#hand-zone-${playerId} .cards-in-zone-container`);
+        if (!handZoneContainer) return;
+
+        const currentHandState = playerHandsState[playerId] || [];
+        // Optimization: if DOM is empty and state is empty, nothing to do.
+        if (currentHandState.length === 0 && Array.from(handZoneContainer.querySelectorAll('.card-on-board')).length === 0) return;
+
+        const newOrderedHandState = [];
+        const domCardElements = Array.from(handZoneContainer.querySelectorAll('.card-on-board'));
+
+        for (const domCard of domCardElements) {
+            const cardId = domCard.dataset.cardId;
+            // Find the full card data object from the current state
+            const cardData = currentHandState.find(c => c.id === cardId);
+            if (cardData) {
+                newOrderedHandState.push(cardData);
+            } else {
+                console.warn(`Card ID ${cardId} from DOM (hand) not found in hand state for player ${playerId} during reorder. This might happen if a card was just added from another zone.`);
+                // Attempt to recover if it was newly added and not yet in currentHandState (e.g. if this is called too early)
+                // This scenario should be handled by ensuring addCardToTargetState runs before reorder.
+            }
+        }
+        playerHandsState[playerId] = newOrderedHandState;
+    }
+
+    // Helper function to reorder the play zone state array based on current DOM order of cards in rows
+    function reorderPlayZoneStateBasedOnDOM(playerId) {
+        const playerAreaElement = document.getElementById(`player-area-${playerId}`);
+        if (!playerAreaElement) return;
+
+        const playZoneRow1Container = playerAreaElement.querySelector(`#play-zone-${playerId}-row1`);
+        const playZoneRow2Container = playerAreaElement.querySelector(`#play-zone-${playerId}-row2`);
+
+        const currentPlayState = playerPlayZonesState[playerId] || [];
+        // Optimization: if DOM is empty and state is empty, nothing to do.
+        if (currentPlayState.length === 0 &&
+            (!playZoneRow1Container || Array.from(playZoneRow1Container.querySelectorAll('.card-on-board')).length === 0) &&
+            (!playZoneRow2Container || Array.from(playZoneRow2Container.querySelectorAll('.card-on-board')).length === 0)
+        ) return;
+
+        const newOrderedPlayState = [];
+        const processedCardIds = new Set(); // To handle cases where cardData might exist in multiple temp states before full sync
+
+        const processRow = (rowContainer) => {
+            if (!rowContainer) return;
+            const domCardElements = Array.from(rowContainer.querySelectorAll('.card-on-board'));
+            for (const domCard of domCardElements) {
+                const cardId = domCard.dataset.cardId;
+                if (processedCardIds.has(cardId)) continue; // Already added
+
+                const cardData = currentPlayState.find(c => c.id === cardId);
+                if (cardData) {
+                    newOrderedPlayState.push(cardData);
+                    processedCardIds.add(cardId);
+                } else {
+                    console.warn(`Card ID ${cardId} from DOM (play zone) not found in play state for player ${playerId} during reorder.`);
+                }
+            }
+        };
+
+        processRow(playZoneRow1Container); // Process Manifest Row first
+        processRow(playZoneRow2Container); // Then Aether Row
+
+        playerPlayZonesState[playerId] = newOrderedPlayState;
+    }
+
     function addDropZoneEventListeners(zoneElement, ownerPlayerId, zoneType) {
         zoneElement.addEventListener('dragover', (event) => {
             event.preventDefault();
@@ -1278,7 +1423,8 @@ document.addEventListener('DOMContentLoaded', () => {
             zoneElement.classList.add('drop-target-highlight');
         });
         zoneElement.addEventListener('dragleave', (event) => {
-            if (!event.relatedTarget || !zoneElement.contains(event.relatedTarget)) {
+            // Check if the mouse is leaving the zoneElement itself or one of its children before removing highlight
+            if (!zoneElement.contains(event.relatedTarget)) {
                 zoneElement.classList.remove('drop-target-highlight');
             }
         });
@@ -1301,14 +1447,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const targetPlayerId = ownerPlayerId;
-            const targetZoneType = zoneType;
-
             const draggedCardElement = document.querySelector(`.card-on-board[data-card-id="${cardId}"]`);
             if (!draggedCardElement) { console.error("Dropped card element not found in DOM:", cardId); return; }
 
-            if (draggedCardElement.parentElement === zoneElement && sourcePlayerId === targetPlayerId && sourceZoneType === targetZoneType) {
-                console.log("Card dropped into its current exact DOM location. No change.");
+            const targetPlayerId = ownerPlayerId;
+            const targetZoneType = zoneType; // This is the specific drop target (e.g. 'play-row1', 'hand')
+
+            // Determine the actual DOM container where cards are children
+            let targetCardsContainer;
+            if (targetZoneType.startsWith('play-row')) { // e.g. 'play-row1', 'play-row2'
+                targetCardsContainer = zoneElement; // The zoneElement (row div) is the direct parent
+            } else if (targetZoneType === 'hand' || targetZoneType === 'discard') {
+                targetCardsContainer = zoneElement.querySelector('.cards-in-zone-container');
+            }
+            // For 'deck', targetCardsContainer is not used for DOM append/insert in the same way.
+
+            if (!targetCardsContainer && (targetZoneType === 'hand' || targetZoneType === 'discard' || targetZoneType.startsWith('play-row'))) {
+                console.error("Critical Error: Target cards container for cards not found in drop target zone:", zoneElement, "for zoneType:", targetZoneType);
                 return;
             }
 
@@ -1317,68 +1472,115 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cardData) {
                 const cardToMove = {
                     ...cardData,
-                    isTapped: originalCardState.isTapped || 'false',
-                    isFacedown: originalCardState.isFacedown || 'false',
-                    rotation: originalCardState.rotation || '0',
-                    counters: originalCardState.counters || '[]'
+                    isTapped: draggedCardElement.dataset.isTapped || originalCardState.isTapped || 'false',
+                    isFacedown: draggedCardElement.dataset.isFacedown || originalCardState.isFacedown || 'false',
+                    rotation: draggedCardElement.dataset.rotation || originalCardState.rotation || '0',
+                    counters: draggedCardElement.dataset.counters || originalCardState.counters || '[]'
                 };
 
-                if (addCardToTargetState(cardToMove, targetPlayerId, targetZoneType)) {
-                    let targetCardsContainer;
-                    if (zoneType.startsWith('play-row')) {
-                        targetCardsContainer = zoneElement;
-                    } else {
-                        targetCardsContainer = zoneElement.querySelector('.cards-in-zone-container');
-                    }
+                let successfulStateUpdate = false;
 
-                    if (!targetCardsContainer) {
-                        console.error("Critical Error: Target cards container not found in zone:", zoneElement, "for zoneType:", targetZoneType);
-                        addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
-                        const sourcePlayerArea = document.getElementById(`player-area-${sourcePlayerId}`);
-                        if (sourcePlayerArea) {
-                            const mainSourceZoneForCount = sourceZoneType.startsWith('play-row') ? 'play' : sourceZoneType;
-                            updateZoneCardCount(sourcePlayerArea, mainSourceZoneForCount);
+                if (targetZoneType === 'deck') {
+                    cardToMove.isFacedown = 'true';
+                    cardToMove.isTapped = 'false';
+                    cardToMove.rotation = (cardToMove.rotation === '180' || originalCardState.rotation === '180') ? '180' : '0';
+
+                    if (!playerDecksState[targetPlayerId]) playerDecksState[targetPlayerId] = [];
+                    playerDecksState[targetPlayerId].unshift(cardToMove);
+                    draggedCardElement.remove();
+                    successfulStateUpdate = true;
+                } else if (targetZoneType === 'discard') {
+                    cardToMove.isTapped = 'false';
+                    cardToMove.isFacedown = 'false';
+                    cardToMove.rotation = (cardToMove.rotation === '180' || originalCardState.rotation === '180') ? '180' : '0';
+
+                    if (addCardToTargetState(cardToMove, targetPlayerId, targetZoneType)) {
+                        successfulStateUpdate = true;
+
+                        draggedCardElement.dataset.isTapped = cardToMove.isTapped;
+                        draggedCardElement.dataset.isFacedown = cardToMove.isFacedown;
+                        draggedCardElement.dataset.rotation = cardToMove.rotation;
+                        draggedCardElement.classList.toggle('tapped', false);
+                        draggedCardElement.classList.toggle('facedown', false);
+                        draggedCardElement.classList.toggle('rotated-180', cardToMove.rotation === '180');
+                        if (cardToMove.rotation !== '180') draggedCardElement.classList.remove('rotated-180');
+                        updateCardCountersDisplay(draggedCardElement);
+
+                        if (targetCardsContainer) {
+                            targetCardsContainer.appendChild(draggedCardElement); // Simple append for discard
+                        } else {
+                            // Should not happen due to earlier check, but as a fallback:
+                            findAndRemoveCardFromSourceState(cardToMove.id, targetPlayerId, targetZoneType);
+                            addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
+                            successfulStateUpdate = false;
                         }
-                        return;
                     }
+                } else { // For hand, play-row1, play-row2
+                    if (addCardToTargetState(cardToMove, targetPlayerId, targetZoneType)) {
+                        successfulStateUpdate = true;
 
-                    const placeholder = targetCardsContainer.querySelector('.placeholder-text');
-                    if (placeholder) placeholder.remove();
+                        draggedCardElement.dataset.isTapped = cardToMove.isTapped;
+                        draggedCardElement.dataset.isFacedown = cardToMove.isFacedown;
+                        draggedCardElement.dataset.rotation = cardToMove.rotation;
+                        draggedCardElement.classList.toggle('tapped', cardToMove.isTapped === 'true');
+                        draggedCardElement.classList.toggle('facedown', cardToMove.isFacedown === 'true');
+                        draggedCardElement.classList.remove('rotated-180');
+                        if (cardToMove.rotation === '180') draggedCardElement.classList.add('rotated-180');
+                        updateCardCountersDisplay(draggedCardElement);
 
-                    // Update card element's dataset for visual consistency before appending
-                    draggedCardElement.dataset.isTapped = cardToMove.isTapped;
-                    draggedCardElement.dataset.isFacedown = cardToMove.isFacedown;
-                    draggedCardElement.dataset.rotation = cardToMove.rotation;
-                    draggedCardElement.dataset.counters = cardToMove.counters;
-                    
-                    // Update classes based on the card's state
-                    draggedCardElement.classList.toggle('tapped', cardToMove.isTapped === 'true');
-                    draggedCardElement.classList.toggle('facedown', cardToMove.isFacedown === 'true');
-                    draggedCardElement.classList.toggle('rotated-180', cardToMove.rotation === '180');
+                        if (targetCardsContainer) {
+                            insertCardIntoDOMZone(draggedCardElement, targetCardsContainer, event.clientX);
+                        } else {
+                            findAndRemoveCardFromSourceState(cardToMove.id, targetPlayerId, targetZoneType);
+                            addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
+                            successfulStateUpdate = false;
+                        }
 
-                    updateCardCountersDisplay(draggedCardElement);
+                        // After DOM manipulation, re-sync the logical state array order
+                        if (successfulStateUpdate) {
+                            if (targetZoneType === 'hand') {
+                                reorderHandStateBasedOnDOM(targetPlayerId);
+                            } else if (targetZoneType.startsWith('play-row')) {
+                                reorderPlayZoneStateBasedOnDOM(targetPlayerId); // This reorders the entire playerPlayZonesState
+                            }
+                        }
+                    }
+                }
 
-                    targetCardsContainer.appendChild(draggedCardElement);
-
-                    // Update counts for source and target player areas
+                if (successfulStateUpdate) {
                     const sourcePlayerArea = document.getElementById(`player-area-${sourcePlayerId}`);
                     if (sourcePlayerArea) {
                         const mainSourceZoneForCount = sourceZoneType.startsWith('play-row') ? 'play' : sourceZoneType;
                         updateZoneCardCount(sourcePlayerArea, mainSourceZoneForCount);
-                        if (mainSourceZoneForCount === 'play') updateZoneCardCount(sourcePlayerArea, 'play');
+                        if (sourceZoneType.startsWith('play-row')) updateZoneCardCount(sourcePlayerArea, 'play');
                     }
 
                     const targetPlayerAreaElem = document.getElementById(`player-area-${targetPlayerId}`);
                     if (targetPlayerAreaElem) {
                         const mainTargetZoneForCount = targetZoneType.startsWith('play-row') ? 'play' : targetZoneType;
                         updateZoneCardCount(targetPlayerAreaElem, mainTargetZoneForCount);
-                        if (mainTargetZoneForCount === 'play') updateZoneCardCount(targetPlayerAreaElem, 'play');
+                        if (targetZoneType.startsWith('play-row')) updateZoneCardCount(targetPlayerAreaElem, 'play');
+                        if (targetZoneType === 'deck') updateZoneCardCount(targetPlayerAreaElem, 'deck');
+                        // For hand/discard, updateZoneCardCount will also handle placeholders if necessary
                     }
-
-                    console.log(`Moved ${cardId} from ${sourcePlayerId}'s ${sourceZoneType} to ${targetPlayerId}'s ${targetZoneType}`);
                 } else {
-                    console.error("Failed to add card to target state. Reverting state change.");
-                    addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
+                    console.error("Failed to update state or DOM for card move.");
+                    if (cardData) { // Attempt to roll back state if cardData was validly removed
+                        console.warn(`Attempting to add card ${cardData.id} back to source ${sourcePlayerId}'s ${sourceZoneType}.`);
+                        // This is a simplified rollback. Original position in array might be lost.
+                        if (sourceZoneType === 'deck') {
+                            if (!playerDecksState[sourcePlayerId]) playerDecksState[sourcePlayerId] = [];
+                            playerDecksState[sourcePlayerId].unshift(cardData); // Add back to top if from deck
+                        } else {
+                            addCardToTargetState(cardData, sourcePlayerId, sourceZoneType); // Add back to its original logical zone type
+                            // Re-order source state if it was hand/play, as DOM hasn't changed there yet if card element wasn't re-added
+                            if (sourceZoneType === 'hand') reorderHandStateBasedOnDOM(sourcePlayerId);
+                            else if (sourceZoneType.startsWith('play-row')) reorderPlayZoneStateBasedOnDOM(sourcePlayerId);
+                        }
+                        // DOM rollback for the draggedCardElement itself is more complex and usually handled by the browser if drop fails,
+                        // or would require re-appending it to its original parent.
+                        // For now, primary focus is on state consistency.
+                    }
                 }
             } else {
                 console.error(`Card data for ${cardId} not found in source state or remove failed. Source: ${sourcePlayerId}'s ${sourceZoneType}`);
@@ -1392,19 +1594,19 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Player ${playerId} has no cards to shuffle.`);
             return;
         }
-        
+
         // Fisher-Yates shuffle algorithm
         const deck = playerDecksState[playerId];
         for (let i = deck.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [deck[i], deck[j]] = [deck[j], deck[i]];
-            
+
             // Randomly assign orientation to each card
             const orientations = ['0', '180'];
             deck[i].rotation = orientations[Math.floor(Math.random() * orientations.length)];
             deck[j].rotation = orientations[Math.floor(Math.random() * orientations.length)];
         }
-        
+
         // Update UI
         const playerAreaElement = document.getElementById(`player-area-${playerId}`);
         if (playerAreaElement) {
@@ -1413,12 +1615,75 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addDeckManipulationMenu(deckZone, playerId) {
-        deckZone.addEventListener('contextmenu', (event) => {
+               deckZone.addEventListener('contextmenu', (event) => {
             event.preventDefault();
             const actions = [
                 {
+                    text: 'Search Deck',
+                    action: () => handleViewCardsFromDeck(playerId, true, true) // Pass true for full search
+                },
+                {
                     text: 'Shuffle Deck',
                     action: () => shuffleDeck(playerId)
+                },
+                {
+                    text: 'View Top N Cards',
+                    action: () => handleViewCardsFromDeck(playerId, true)
+                },
+                {
+                    text: 'View Bottom N Cards',
+                    action: () => handleViewCardsFromDeck(playerId, false)
+                }
+            ];
+            showContextMenu(event, actions);
+        });
+    }
+
+    function shuffleDiscardPile(playerId) {
+        const discardPile = playerDiscardsState[playerId] || [];
+        if (discardPile.length < 2) {
+            console.log(`Player ${playerId} has fewer than 2 cards in their discard pile to shuffle.`);
+            return;
+        }
+
+        // Fisher-Yates shuffle algorithm
+        for (let i = discardPile.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [discardPile[i], discardPile[j]] = [discardPile[j], discardPile[i]];
+        }
+
+        // Update UI to reflect the new order
+        const playerAreaElement = document.getElementById(`player-area-${playerId}`);
+        if (playerAreaElement) {
+            const discardZoneContainer = playerAreaElement.querySelector(`#discard-zone-${playerId} .cards-in-zone-container`);
+            if (discardZoneContainer) {
+                // Clear existing card elements from the DOM
+                discardZoneContainer.innerHTML = '';
+                // Re-add them in the new shuffled order
+                discardPile.forEach(cardData => {
+                    const cardElement = createCardElement(cardData, false);
+                    discardZoneContainer.appendChild(cardElement);
+                });
+            }
+        }
+        console.log(`Player ${playerId}'s discard pile has been shuffled.`);
+    }
+
+    function addDiscardPileManipulationMenu(discardZone, playerId) {
+        discardZone.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            const discardPile = playerDiscardsState[playerId] || [];
+            if (discardPile.length === 0) {
+                return;
+            }
+            const actions = [
+                {
+                    text: 'Search Discard Pile',
+                    action: () => handleViewCardsFromDiscard(playerId)
+                },
+                {
+                    text: 'Shuffle Discard Pile',
+                    action: () => shuffleDiscardPile(playerId)
                 }
             ];
             showContextMenu(event, actions);
@@ -1451,7 +1716,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 menuItem.classList.add('disabled');
             }
             menuItem.textContent = item.text;
-            
+
             if (item.shortcut) {
                 const shortcut = document.createElement('span');
                 shortcut.className = 'shortcut';
@@ -1476,27 +1741,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function showContextMenu(event, items) {
         event.preventDefault();
         const menu = createContextMenu(items);
-        
+
         // Position the menu at the cursor
         const x = event.clientX;
         const y = event.clientY;
-        
+
         // Ensure menu stays within viewport
         const rect = menu.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
-        
+
         let finalX = x;
         let finalY = y;
-        
+
         if (x + rect.width > viewportWidth) {
             finalX = viewportWidth - rect.width;
         }
-        
+
         if (y + rect.height > viewportHeight) {
             finalY = viewportHeight - rect.height;
         }
-        
+
         menu.style.left = `${finalX}px`;
         menu.style.top = `${finalY}px`;
         menu.classList.add('active');
@@ -1508,7 +1773,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.removeEventListener('click', closeMenu);
             }
         };
-        
+
         // Use setTimeout to avoid immediate trigger
         setTimeout(() => {
             document.addEventListener('click', closeMenu);
@@ -1544,8 +1809,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial page display
     showPage('landing-page');
-    renderDeckPreview(); // Show initial placeholder in deck preview
-    updateLobbyUI(); // Initialize lobby UI elements even if no game active
+    renderDeckPreview();
+    updateLobbyUI();
 
     // Handle joining via URL parameter
     const urlParams = new URLSearchParams(window.location.search);
@@ -1553,11 +1818,479 @@ document.addEventListener('DOMContentLoaded', () => {
     if (joinCodeFromUrl && gameCodeInput && playerNameInput) {
         gameCodeInput.value = joinCodeFromUrl.toUpperCase();
         playerNameInput.focus();
-        // alert(`Attempting to join game: ${joinCodeFromUrl}. Please enter your name and click 'Join Game'.`);
-        // Clear the ?join= parameter from URL to prevent re-joining on refresh
+
         if (window.history.replaceState) {
             const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
             window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
         }
     }
+
+    // Modal for viewing cards from deck
+    let viewCardsModal, viewCardsModalTitle, viewCardsModalBody, viewCardsModalFooter, viewCardsModalCloseButton;
+
+    function ensureViewCardsModalElements() {
+        if (document.getElementById('viewCardsModal')) {
+            viewCardsModal = document.getElementById('viewCardsModal');
+            viewCardsModalTitle = document.getElementById('viewCardsModalTitle');
+            viewCardsModalBody = document.getElementById('viewCardsModalBody');
+            viewCardsModalFooter = document.getElementById('viewCardsModalFooter');
+            viewCardsModalCloseButton = document.getElementById('viewCardsModalCloseButton');
+            return;
+        }
+
+        viewCardsModal = document.createElement('div');
+        viewCardsModal.id = 'viewCardsModal';
+        viewCardsModal.className = 'modal';
+
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content-large';
+
+        viewCardsModalCloseButton = document.createElement('span');
+        viewCardsModalCloseButton.id = 'viewCardsModalCloseButton';
+        viewCardsModalCloseButton.className = 'close-modal-button';
+        viewCardsModalCloseButton.innerHTML = '×';
+        viewCardsModalCloseButton.onclick = () => hideViewCardsModal();
+
+        viewCardsModalTitle = document.createElement('h2');
+        viewCardsModalTitle.id = 'viewCardsModalTitle';
+
+        viewCardsModalBody = document.createElement('div');
+        viewCardsModalBody.id = 'viewCardsModalBody';
+        viewCardsModalBody.className = 'modal-card-grid'; // Changed from deck-preview-grid to modal-card-grid
+
+        viewCardsModalFooter = document.createElement('div');
+        viewCardsModalFooter.id = 'viewCardsModalFooter';
+        viewCardsModalFooter.className = 'modal-footer';
+
+        modalContent.appendChild(viewCardsModalCloseButton);
+        modalContent.appendChild(viewCardsModalTitle);
+        modalContent.appendChild(viewCardsModalBody);
+        modalContent.appendChild(viewCardsModalFooter);
+        viewCardsModal.appendChild(modalContent);
+        document.body.appendChild(viewCardsModal);
+    }
+
+    function hideViewCardsModal() {
+        if (viewCardsModal) {
+            viewCardsModal.classList.remove('active');
+            viewCardsModalBody.innerHTML = '';
+            viewCardsModalFooter.innerHTML = '';
+        }
+    }
+
+    function moveCardAndUpdateBoard(cardId, sourcePlayerId, sourceZoneType, targetPlayerId, targetZoneType, positionInTarget = 'end') {
+        const cardData = findAndRemoveCardFromSourceState(cardId, sourcePlayerId, sourceZoneType);
+        if (!cardData) {
+            console.error(`Failed to find/remove card ${cardId} from ${sourcePlayerId}'s ${sourceZoneType}`);
+            return null;
+        }
+
+        // Apply transformations based on target zone
+        if (targetZoneType === 'hand' || targetZoneType === 'discard') {
+            cardData.isFacedown = 'false';
+            cardData.isTapped = 'false';
+            cardData.rotation = (cardData.rotation === '180') ? '180' : '0';
+        } else if (targetZoneType === 'deck') {
+            cardData.isFacedown = 'true';
+            cardData.isTapped = 'false';
+            cardData.rotation = (cardData.rotation === '180') ? '180' : '0';
+        }
+
+        let success = false;
+        if (targetZoneType === 'deck') {
+            if (!playerDecksState[targetPlayerId]) playerDecksState[targetPlayerId] = [];
+            if (positionInTarget === 'top') {
+                playerDecksState[targetPlayerId].unshift(cardData);
+            } else {
+                playerDecksState[targetPlayerId].push(cardData);
+            }
+            success = true;
+        } else {
+            success = addCardToTargetState(cardData, targetPlayerId, targetZoneType);
+        }
+
+        if (success) {
+            const sourcePlayerArea = document.getElementById(`player-area-${sourcePlayerId}`);
+            if (sourcePlayerArea) updateZoneCardCount(sourcePlayerArea, sourceZoneType.startsWith('play-row') ? 'play' : sourceZoneType);
+
+            const targetPlayerArea = document.getElementById(`player-area-${targetPlayerId}`);
+            if (targetPlayerArea) {
+                updateZoneCardCount(targetPlayerArea, targetZoneType.startsWith('play-row') ? 'play' : targetZoneType);
+                if (targetZoneType === 'hand') {
+                    const handZoneContainer = targetPlayerArea.querySelector(`#hand-zone-${targetPlayerId} .cards-in-zone-container`);
+                    if (handZoneContainer) {
+                        const newCardElement = createCardElement(cardData, false);
+                        handZoneContainer.appendChild(newCardElement);
+                    }
+                } else if (targetZoneType === 'discard') {
+                    const discardZoneContainer = targetPlayerArea.querySelector(`#discard-zone-${targetPlayerId} .cards-in-zone-container`);
+                    if (discardZoneContainer) {
+                        const existingEl = discardZoneContainer.querySelector(`.card-on-board[data-card-id="${cardData.id}"]`);
+                        if (existingEl) existingEl.remove();
+                        const newCardElement = createCardElement(cardData, false);
+                        discardZoneContainer.appendChild(newCardElement);
+                    }
+                }
+            }
+            return cardData;
+        } else {
+            console.error(`Failed to move card ${cardId} to ${targetPlayerId}'s ${targetZoneType}. Attempting rollback.`);
+            addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
+            return null;
+        }
+    }
+
+        function handleViewCardsFromDeck(playerId, viewFromTop, isFullSearch = false) {
+        ensureViewCardsModalElements();
+        const deck = playerDecksState[playerId] || [];
+        if (deck.length === 0) {
+            alert("The deck is empty.");
+            return;
+        }
+
+        let N;
+        let modalTitleText;
+
+        if (isFullSearch) {
+            N = deck.length;
+            modalTitleText = `Searching Deck (${N} cards)`;
+        } else {
+            const numStr = prompt(`How many cards to view from the ${viewFromTop ? 'top' : 'bottom'}? (1-${deck.length})`, "1");
+            if (numStr === null) return;
+
+            const parsedN = parseInt(numStr);
+            if (isNaN(parsedN) || parsedN <= 0 || parsedN > deck.length) {
+                alert(`Please enter a valid number between 1 and ${deck.length}.`);
+                return;
+            }
+            N = parsedN;
+            modalTitleText = `Viewing ${N} Card${N > 1 ? 's' : ''} from ${viewFromTop ? 'Top' : 'Bottom'} of Deck`;
+        }
+
+        const cardsToViewSource = isFullSearch ? deck : (viewFromTop ? deck.slice(0, N) : deck.slice(-N));
+        let currentModalCards = JSON.parse(JSON.stringify(cardsToViewSource));
+
+        viewCardsModalTitle.textContent = modalTitleText;
+        viewCardsModalBody.innerHTML = '';
+
+        currentModalCards.forEach(card => {
+            const cardItemContainer = document.createElement('div');
+            cardItemContainer.className = 'card-in-modal-item';
+            cardItemContainer.dataset.cardId = card.id;
+            cardItemContainer.draggable = true; // Make it draggable
+
+            // Add drag and drop listeners for reordering
+            cardItemContainer.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', card.id);
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => cardItemContainer.classList.add('dragging-modal-card'), 0);
+            });
+
+            cardItemContainer.addEventListener('dragend', () => {
+                cardItemContainer.classList.remove('dragging-modal-card');
+                viewCardsModalBody.querySelectorAll('.modal-drag-over').forEach(el => el.classList.remove('modal-drag-over'));
+            });
+
+            cardItemContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (!cardItemContainer.classList.contains('dragging-modal-card')) {
+                    cardItemContainer.classList.add('modal-drag-over');
+                }
+            });
+
+            cardItemContainer.addEventListener('dragleave', (e) => {
+                if (!cardItemContainer.contains(e.relatedTarget)) {
+                    cardItemContainer.classList.remove('modal-drag-over');
+                }
+            });
+
+            cardItemContainer.addEventListener('drop', (e) => {
+                e.preventDefault();
+                cardItemContainer.classList.remove('modal-drag-over');
+                const draggedCardId = e.dataTransfer.getData('text/plain');
+
+                if (draggedCardId === card.id) return;
+
+                const draggedItem = viewCardsModalBody.querySelector(`.card-in-modal-item[data-card-id="${draggedCardId}"]`);
+                const targetItem = cardItemContainer;
+
+                if (draggedItem && targetItem) {
+                    // Reorder in DOM
+                    viewCardsModalBody.insertBefore(draggedItem, targetItem);
+
+                    // Reorder the state array `currentModalCards` to match the new DOM order
+                    const newOrderedState = [];
+                    const itemsInModal = viewCardsModalBody.querySelectorAll('.card-in-modal-item');
+                    itemsInModal.forEach(item => {
+                        const cardId = item.dataset.cardId;
+                        const cardData = currentModalCards.find(c => c.id === cardId);
+                        if (cardData) newOrderedState.push(cardData);
+                    });
+                    currentModalCards = newOrderedState;
+                }
+            });
+
+            const cardThumb = createCardElement({ ...card, isFacedown: 'false' }, false);
+            cardThumb.classList.add('modal-card-thumb');
+            cardThumb.draggable = false;
+            const cardThumbClone = cardThumb.cloneNode(true);
+            cardItemContainer.appendChild(cardThumbClone);
+
+                        // Add a right-click context menu for card actions
+            cardItemContainer.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+                const cardId = card.id;
+
+                const actions = [
+                    {
+                        text: 'To Hand',
+                        action: () => {
+                            if (moveCardAndUpdateBoard(cardId, playerId, 'deck', playerId, 'hand')) {
+                                cardItemContainer.remove();
+                                currentModalCards = currentModalCards.filter(c => c.id !== cardId);
+                            }
+                        }
+                    },
+                    {
+                        text: 'To Top of Deck',
+                        action: () => {
+                            const actualCard = findAndRemoveCardFromSourceState(cardId, playerId, 'deck');
+                            if (actualCard) {
+                                playerDecksState[playerId].unshift(actualCard);
+                                cardItemContainer.remove();
+                                currentModalCards = currentModalCards.filter(c => c.id !== cardId);
+                                updateZoneCardCount(document.getElementById(`player-area-${playerId}`), 'deck');
+                            }
+                        }
+                    },
+                    {
+                        text: 'To Bottom of Deck',
+                        action: () => {
+                            const actualCard = findAndRemoveCardFromSourceState(cardId, playerId, 'deck');
+                            if (actualCard) {
+                                playerDecksState[playerId].push(actualCard);
+                                cardItemContainer.remove();
+                                currentModalCards = currentModalCards.filter(c => c.id !== cardId);
+                                updateZoneCardCount(document.getElementById(`player-area-${playerId}`), 'deck');
+                            }
+                        }
+                    },
+                    {
+                        text: 'To Discard',
+                        action: () => {
+                            if (moveCardAndUpdateBoard(cardId, playerId, 'deck', playerId, 'discard')) {
+                                cardItemContainer.remove();
+                                currentModalCards = currentModalCards.filter(c => c.id !== cardId);
+                            }
+                        }
+                    }
+                ];
+
+                showContextMenu(event, actions);
+            });
+            viewCardsModalBody.appendChild(cardItemContainer);
+        });
+
+        viewCardsModalFooter.innerHTML = '';
+
+        const createFooterButton = (text, actionFn) => {
+            const btn = document.createElement('button');
+            btn.textContent = text;
+            btn.className = 'action-button';
+            btn.onclick = () => {
+                actionFn();
+                hideViewCardsModal();
+            };
+            return btn;
+        };
+
+        const playerAreaElement = document.getElementById(`player-area-${playerId}`);
+
+        viewCardsModalFooter.appendChild(createFooterButton('Return Remaining to Top (Order Shown)', () => {
+            if (currentModalCards.length > 0) {
+                const remainingCardIds = currentModalCards.map(c => c.id);
+                playerDecksState[playerId] = playerDecksState[playerId].filter(c => !remainingCardIds.includes(c.id));
+                const cardsToReturn = currentModalCards.map(modalCard => {
+                    modalCard.isFacedown = 'true';
+                    modalCard.isTapped = 'false';
+                    modalCard.rotation = (modalCard.rotation === '180') ? '180' : '0';
+                    return modalCard;
+                });
+                playerDecksState[playerId].unshift(...cardsToReturn);
+                if (playerAreaElement) updateZoneCardCount(playerAreaElement, 'deck');
+            }
+        }));
+
+        viewCardsModalFooter.appendChild(createFooterButton('Return Remaining to Bottom (Order Shown)', () => {
+            if (currentModalCards.length > 0) {
+                const remainingCardIds = currentModalCards.map(c => c.id);
+                playerDecksState[playerId] = playerDecksState[playerId].filter(c => !remainingCardIds.includes(c.id));
+                const cardsToReturn = currentModalCards.map(modalCard => {
+                    modalCard.isFacedown = 'true';
+                    modalCard.isTapped = 'false';
+                    modalCard.rotation = (modalCard.rotation === '180') ? '180' : '0';
+                    return modalCard;
+                });
+                playerDecksState[playerId].push(...cardsToReturn);
+                if (playerAreaElement) updateZoneCardCount(playerAreaElement, 'deck');
+            }
+        }));
+
+        const justCloseButton = document.createElement('button');
+        justCloseButton.textContent = 'Close (Keep Unmoved in Deck)';
+        justCloseButton.className = 'action-button secondary-button';
+        justCloseButton.onclick = () => {
+            hideViewCardsModal();
+        };
+        viewCardsModalFooter.appendChild(justCloseButton);
+
+        viewCardsModal.classList.add('active');
+    }
+
+    function handleViewCardsFromDiscard(playerId) {
+        ensureViewCardsModalElements();
+        const discardPile = playerDiscardsState[playerId] || [];
+        if (discardPile.length === 0) {
+            alert("The discard pile is empty.");
+            return;
+        }
+
+        const cardsToView = [...discardPile];
+
+        viewCardsModalTitle.textContent = `Viewing Discard Pile (${cardsToView.length} cards)`;
+        viewCardsModalBody.innerHTML = '';
+
+        cardsToView.forEach(card => {
+            const cardItemContainer = document.createElement('div');
+            cardItemContainer.className = 'card-in-modal-item';
+            cardItemContainer.dataset.cardId = card.id;
+            cardItemContainer.draggable = true;
+
+            // Add drag and drop listeners for reordering
+            cardItemContainer.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', card.id);
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => cardItemContainer.classList.add('dragging-modal-card'), 0);
+            });
+
+            cardItemContainer.addEventListener('dragend', () => {
+                cardItemContainer.classList.remove('dragging-modal-card');
+                viewCardsModalBody.querySelectorAll('.modal-drag-over').forEach(el => el.classList.remove('modal-drag-over'));
+            });
+
+            cardItemContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (!cardItemContainer.classList.contains('dragging-modal-card')) {
+                    cardItemContainer.classList.add('modal-drag-over');
+                }
+            });
+
+            cardItemContainer.addEventListener('dragleave', (e) => {
+                if (!cardItemContainer.contains(e.relatedTarget)) {
+                    cardItemContainer.classList.remove('modal-drag-over');
+                }
+            });
+
+            cardItemContainer.addEventListener('drop', (e) => {
+                e.preventDefault();
+                cardItemContainer.classList.remove('modal-drag-over');
+                const draggedCardId = e.dataTransfer.getData('text/plain');
+
+                if (draggedCardId === card.id) return;
+
+                const draggedItem = viewCardsModalBody.querySelector(`.card-in-modal-item[data-card-id="${draggedCardId}"]`);
+                const targetItem = cardItemContainer;
+
+                if (draggedItem && targetItem) {
+                    // Reorder in DOM
+                    viewCardsModalBody.insertBefore(draggedItem, targetItem);
+
+                    // Reorder the state array `cardsToView` to match the new DOM order
+                    const newOrderedState = [];
+                    const itemsInModal = viewCardsModalBody.querySelectorAll('.card-in-modal-item');
+                    itemsInModal.forEach(item => {
+                        const cardId = item.dataset.cardId;
+                        const cardData = cardsToView.find(c => c.id === cardId);
+                        if (cardData) newOrderedState.push(cardData);
+                    });
+                    cardsToView = newOrderedState;
+                }
+            });
+
+            const cardThumb = createCardElement({ ...card, isFacedown: 'false' }, false);
+            cardThumb.classList.add('modal-card-thumb');
+            cardThumb.draggable = false;
+
+            const zoomPreview = cardThumb.querySelector('.zoom-preview');
+            if (zoomPreview) zoomPreview.remove();
+
+            cardItemContainer.appendChild(cardThumb);
+
+                        // Add a right-click context menu for card actions
+            cardItemContainer.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+                const cardId = card.id;
+
+                const handleMoveAction = (targetZone, deckPosition = 'end') => {
+                    const movedCard = moveCardAndUpdateBoard(cardId, playerId, 'discard', playerId, targetZone, deckPosition);
+                    if (movedCard) {
+                        cardItemContainer.remove();
+                        const discardZoneContainer = document.querySelector(`#discard-zone-${playerId} .cards-in-zone-container`);
+                        const cardElementInDiscard = discardZoneContainer?.querySelector(`.card-on-board[data-card-id="${cardId}"]`);
+                        if (cardElementInDiscard) {
+                            cardElementInDiscard.remove();
+                        }
+                    }
+                };
+
+                const actions = [
+                    { text: 'To Hand', action: () => handleMoveAction('hand') },
+                    { text: 'To Top of Deck', action: () => handleMoveAction('deck', 'top') },
+                    { text: 'To Bottom of Deck', action: () => handleMoveAction('deck', 'end') },
+                ];
+
+                showContextMenu(event, actions);
+            });
+            viewCardsModalBody.appendChild(cardItemContainer);
+        });
+
+        viewCardsModalFooter.innerHTML = '';
+
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Close';
+        closeButton.className = 'action-button secondary-button';
+        closeButton.onclick = () => hideViewCardsModal();
+        viewCardsModalFooter.appendChild(closeButton);
+
+        viewCardsModal.classList.add('active');
+    }
+
+    // Ensure modal elements are available on DOMContentLoaded
+    ensureViewCardsModalElements();
+
+    // Add slider controls
+    const previewZoomSlider = document.getElementById('previewZoomSlider');
+    const previewZoomValue = document.getElementById('previewZoomValue');
+    const cardSizeSlider = document.getElementById('cardSizeSlider');
+    const cardSizeValue = document.getElementById('cardSizeValue');
+
+    // Initialize CSS variables
+    document.documentElement.style.setProperty('--preview-zoom', previewZoomSlider.value);
+    document.documentElement.style.setProperty('--card-size', cardSizeSlider.value);
+
+    // Handle preview zoom slider
+    previewZoomSlider.addEventListener('input', (e) => {
+        const value = e.target.value;
+        document.documentElement.style.setProperty('--preview-zoom', value);
+        previewZoomValue.textContent = `${value}x`;
+    });
+
+    // Handle card size slider
+    cardSizeSlider.addEventListener('input', (e) => {
+        const value = e.target.value;
+        document.documentElement.style.setProperty('--card-size', value);
+        cardSizeValue.textContent = `${Math.round(value * 100)}%`;
+    });
 });

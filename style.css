@@ -2,7 +2,6 @@
 body {
     font-family: 'Crimson Pro', serif;
     margin: 0;
-   /* background-color: #f4f7f6;*/
     color: #333;
     display: flex;
     justify-content: center;
@@ -43,16 +42,30 @@ header {
 header h1 {
     color: #2c3e50;
     margin: 0;
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 10px;
+    width: auto;
+    justify-self: center;
+    align-content: center;
+    padding: 10px;
+    margin-bottom: 20px;
 }
 
 footer {
-    /* General footer style for pages */
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 1px solid #e0e0e0;
+    margin-top: 10px;
     text-align: center;
     font-size: 1.2em;
-    color: #7f8c8d;
+    color: #242833;
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 10px;
+    width: 50%;
+    justify-self: center;
+    align-content: center;
+
+}
+
+img {
+    overflow: visible;
 }
 
 /* --- Forms & Inputs --- */
@@ -84,7 +97,7 @@ input[readonly] {
 /* --- Buttons --- */
 .action-button,
 .upload-button-label {
-    background-color: #3498db;
+    background-color: #2c4c61;
     color: white;
     padding: 12px 20px;
     border: none;
@@ -96,7 +109,6 @@ input[readonly] {
     display: inline-block;
     text-align: center;
     text-decoration: none;
-    margin: 5px 0;
 }
 
 .action-button:hover,
@@ -201,17 +213,20 @@ input[readonly] {
 }
 
 .status-ready {
-    color: #27ae60 !important;
+    color: #1c8b4a !important;
     font-weight: bold;
 }
 
 .status-pending {
-    color: #f39c12 !important;
+    color: #bd5626 !important;
 }
 
 #deckUploadSection {
     flex: 2;
     min-width: 400px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 10px;
+    padding: 20px;
 }
 
 #deckUploadSection h2 {
@@ -265,6 +280,7 @@ input[readonly] {
 
 #deckPreviewContainer {
     margin-top: 25px;
+    overflow: visible;
 }
 
 #deckPreviewContainer h3 {
@@ -272,32 +288,75 @@ input[readonly] {
 }
 
 .deck-preview-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(63px, 1fr));
-    gap: 8px;
-    padding: 10px;
-    border: 1px solid #d1d1d1;
-    border-radius: 5px;
-    min-height: 90px;
-    background-color: rgba(240, 243, 244, 0.5);
-    max-height: 330px;
-    overflow-y: auto;
-    align-content: flex-start;
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    align-content: center;
+    padding: 8px;
+    width: 100%;
+    gap: 5px;
 }
 
-.deck-preview-grid .placeholder-text {
-    grid-column: 1 / -1;
+.deck-preview-grid .card-thumbnail-container {
+    margin-right: calc(-40px * var(--card-size, 1));
+    transition: transform 0.2s ease-in-out, margin 0.2s ease-in-out;
+    position: relative;
+}
+
+.deck-preview-grid .card-thumbnail-container:hover {
+    margin-right: 0;
+    margin-left: 0;
+    z-index: 1000;
+    transform: scale(1.8);
+}
+
+.deck-preview-grid .card-thumbnail-container:last-child {
+    margin-right: 0;
+}
+
+.deck-preview-grid .card-thumbnail-container:hover+.card-thumbnail-container {
+    margin-left: calc(-40px * var(--card-size, 1));
+}
+
+.deck-preview-grid .card-thumbnail-container .zoom-preview {
+    display: none;
+    position: absolute;
+    width: calc(378px * var(--card-size, 1));
+    height: calc(528px * var(--card-size, 1));
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    pointer-events: none;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.deck-preview-grid .card-thumbnail-container:hover .zoom-preview {
+    display: block;
+}
+
+.deck-preview-grid .card-thumbnail-container .zoom-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.card-in-modal-item {
     text-align: center;
-    color: #95a5a6;
-    font-style: italic;
-    padding: 20px 0;
+    margin-bottom: 0;
+}
+
+.modal-card-thumb {
+    width: calc(126px * var(--card-size, 1));
+    height: calc(176px * var(--card-size, 1));
+    cursor: default;
 }
 
 .card-thumbnail-container {
-    width: 63px;
-    height: 88px;
+    width: calc(63px * var(--card-size, 1));
+    height: calc(88px * var(--card-size, 1));
     background-color: #e0e0e0;
-    border: 1px solid #b0b0b0;
     border-radius: 3px;
     overflow: visible;
     display: flex;
@@ -310,6 +369,7 @@ input[readonly] {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    overflow: visible;
 }
 
 #lobby-page footer {
@@ -323,13 +383,15 @@ input[readonly] {
 /* --- Game Board Page Styles --- */
 #gameInfo {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     background-color: rgba(236, 240, 241, 0.5);
     padding: 10px 15px;
     border-radius: 5px;
     margin-bottom: 15px;
     border: 1px solid #dce4e8;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 #gameInfo p {
@@ -385,6 +447,23 @@ input[readonly] {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+.energy-counter {
+    background-color: #fff3e0;
+    border: 1px solid #ffe0b2;
+}
+
+.energy-counter .life-total {
+    color: #e65100;
+}
+
+.energy-counter .life-button {
+    color: #e65100;
+}
+
+.energy-counter .life-button:hover {
+    color: #bf360c;
+}
+
 .life-button {
     background: none;
     border: none;
@@ -435,7 +514,7 @@ input[readonly] {
     display: flex;
     gap: 10px;
     flex-grow: 1;
-    min-height: 220px;
+    min-height: calc(264px * var(--card-size, 1));
     box-sizing: border-box;
 }
 
@@ -450,6 +529,7 @@ input[readonly] {
     overflow: visible;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     transition: all 0.2s ease;
+    user-select: none;
 }
 
 .zone:hover {
@@ -509,8 +589,8 @@ input[readonly] {
 }
 
 .play-zone-row {
-    height: 300px;
-    min-height: 100px;
+    height: calc(300px * var(--card-size, 1));
+    min-height: calc(100px * var(--card-size, 1));
     border: 1px dashed #b0bec5;
     border-radius: 6px;
     background-color: rgba(0, 0, 0, 0.02);
@@ -543,12 +623,11 @@ input[readonly] {
 .play-zone {
     flex-grow: 1;
     background-color: rgba(236, 239, 241, 0.5);
-    min-height: 250px;
+    min-height: calc(264px * var(--card-size, 1));
     display: flex;
     flex-direction: column;
     gap: 8px;
     padding: 10px;
-    padding-top: 25px;
     position: relative;
     border-radius: 8px;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -563,16 +642,16 @@ input[readonly] {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    width: 189px;
-    min-width: 189px;
+    width: calc(189px * var(--card-size, 1));
+    min-width: calc(189px * var(--card-size, 1));
     justify-content: space-between;
     min-height: 100%;
 }
 
 .deck-zone,
 .discard-zone {
-    width: 189px;
-    height: 264px;
+    width: calc(189px * var(--card-size, 1));
+    height: calc(264px * var(--card-size, 1));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -586,6 +665,7 @@ input[readonly] {
     background-color: rgba(224, 242, 241, 0.5);
     cursor: pointer;
     position: relative;
+
 }
 
 .deck-zone::before {
@@ -595,9 +675,9 @@ input[readonly] {
     height: 100%;
     background: linear-gradient(135deg, #616161, #424242);
     border: 1px solid #333;
-    border-radius: 4px;
     z-index: 1;
-    box-sizing: border-box; /* Ensure border is inside */
+    box-sizing: border-box;
+    border-radius: 0.2cm;
 }
 
 .deck-zone:hover {
@@ -634,6 +714,7 @@ input[readonly] {
 
 .discard-zone {
     background-color: rgba(255, 235, 238, 0.5);
+    border-radius: 0.1 cm;
 }
 
 .discard-zone:hover {
@@ -656,69 +737,55 @@ input[readonly] {
     left: 0;
     width: 100%;
     height: 100%;
-    transition: transform 0.2s ease;
-}
-
-.discard-zone .card-on-board:nth-child(1) {
-    transform: translateY(0);
-}
-
-.discard-zone .card-on-board.rotated-180:nth-child(1) {
-    transform: translateY(0) rotate(180deg);
-}
-
-.discard-zone .card-on-board:nth-child(2) {
-    transform: translateY(-2px);
-}
-
-.discard-zone .card-on-board.rotated-180:nth-child(2) {
-    transform: translateY(-2px) rotate(180deg);
-}
-
-.discard-zone .card-on-board:nth-child(3) {
-    transform: translateY(-4px);
-}
-
-.discard-zone .card-on-board.rotated-180:nth-child(3) {
-    transform: translateY(-4px) rotate(180deg);
-}
-
-.discard-zone .card-on-board:nth-child(4) {
-    transform: translateY(-6px);
-}
-
-.discard-zone .card-on-board.rotated-180:nth-child(4) {
-    transform: translateY(-6px) rotate(180deg);
-}
-
-.discard-zone .card-on-board:nth-child(5) {
-    transform: translateY(-8px);
-}
-
-.discard-zone .card-on-board.rotated-180:nth-child(5) {
-    transform: translateY(-8px) rotate(180deg);
-}
-
-.discard-zone .card-on-board:nth-child(n+6) {
-    transform: translateY(-10px);
-}
-
-.discard-zone .card-on-board.rotated-180:nth-child(n+6) {
-    transform: translateY(-10px) rotate(180deg);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 2px 5px rgba(0, 0, 0, 0.15);
+    border-radius: 0.2cm;
 }
 
 .discard-zone .card-on-board:hover {
-    transform: translateY(0px) scale(1.8);
+    transform: scale(1.8);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25), 0 5px 10px rgba(0, 0, 0, 0.22);
     z-index: 1000;
 }
 
 .discard-zone .card-on-board.rotated-180:hover {
-    transform: translateY(0px) scale(1.8) rotate(180deg);
+    transform: scale(1.8) rotate(180deg);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25), 0 5px 10px rgba(0, 0, 0, 0.22);
     z-index: 1000;
 }
 
 .discard-zone .zone-label {
     z-index: 2;
+}
+
+/* Set the z-index for each card to control the stacking order */
+.discard-zone .card-on-board:nth-child(1) {
+    z-index: 1;
+}
+
+.discard-zone .card-on-board:nth-child(2) {
+    z-index: 2;
+}
+
+.discard-zone .card-on-board:nth-child(3) {
+    z-index: 3;
+}
+
+.discard-zone .card-on-board:nth-child(4) {
+    z-index: 4;
+}
+
+.discard-zone .card-on-board:nth-child(5) {
+    z-index: 5;
+}
+
+.discard-zone .card-on-board:nth-child(n+6) {
+    z-index: 6;
+}
+
+/* Handle rotation without affecting stacking position */
+.discard-zone .card-on-board.rotated-180 {
+    transform: rotate(180deg);
 }
 
 .hand-zone .placeholder-text {
@@ -729,8 +796,9 @@ input[readonly] {
     color: #78909c;
     font-style: italic;
 }
+
 .hand-zone {
-    height: 300px;
+    height: calc(300px * var(--card-size, 1));
     width: 100%;
     background-color: rgba(227, 242, 253, 0.5);
     box-sizing: border-box;
@@ -755,7 +823,7 @@ input[readonly] {
 
 /* Add styles for overlapping cards */
 .hand-zone .card-on-board {
-    margin-right: -80px;
+    margin-right: calc(-80px * var(--card-size, 1));
     transition: transform 0.2s ease-in-out, margin 0.2s ease-in-out;
 }
 
@@ -773,13 +841,13 @@ input[readonly] {
 
 /* When hovering, adjust margins of adjacent cards */
 .hand-zone .card-on-board:hover+.card-on-board {
-    margin-left: -80px;
+    margin-left: calc(-80px * var(--card-size, 1));
 }
 
 /* Card Styling on Board */
 .card-on-board {
-    width: 189px;
-    height: 264px;
+    width: calc(189px * var(--card-size, 1));
+    height: calc(264px * var(--card-size, 1));
     background-color: #fff;
     border-radius: 0.2cm;
     overflow: visible !important;
@@ -794,7 +862,7 @@ input[readonly] {
 }
 
 .card-on-board:hover {
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
     z-index: 1000;
     position: relative;
 }
@@ -804,8 +872,8 @@ input[readonly] {
     height: 100%;
     object-fit: cover;
     display: block;
-    border-radius: inherit;
-    
+    border-radius: 0.1cm;
+
 }
 
 .card-on-board .zoom-preview {
@@ -831,10 +899,12 @@ input[readonly] {
 
 .card-on-board.dragging {
     opacity: 0.5;
+    cursor: grabbing;
 }
 
-.card-on-board.dragging * {
-    cursor: none !important;
+.is-dragging,
+.is-dragging * {
+    cursor: grabbing !important;
 }
 
 .card-on-board.dragging img {
@@ -874,22 +944,22 @@ input[readonly] {
     transform: rotate(270deg);
 }
 
-/* Hover effects that combine with transformations */
-.card-on-board:hover:not(.tapped):not(.rotated-180) {
-    transform: scale(1.8);
+/* Hover effects that combine with transformations, disabled during drag */
+.card-on-board:hover:not(.tapped):not(.rotated-180):not(.dragging) {
+    transform: scale(var(--preview-zoom, 1.8));
 }
 
-.card-on-board.tapped:hover {
-    transform: rotate(90deg) scale(1.8);
+.card-on-board.tapped:hover:not(.dragging) {
+    transform: rotate(90deg) scale(var(--preview-zoom, 1.8));
 }
 
-.card-on-board.rotated-180:hover {
-    transform: rotate(180deg) scale(1.8);
+.card-on-board.rotated-180:hover:not(.dragging) {
+    transform: rotate(180deg) scale(var(--preview-zoom, 1.8));
 }
 
-.card-on-board.tapped.rotated-180:hover,
-.card-on-board.rotated-180.tapped:hover {
-    transform: rotate(270deg) scale(1.8);
+.card-on-board.tapped.rotated-180:hover:not(.dragging),
+.card-on-board.rotated-180.tapped:hover:not(.dragging) {
+    transform: rotate(270deg) scale(var(--preview-zoom, 1.8));
 }
 
 .counters-container {
@@ -921,32 +991,111 @@ input[readonly] {
 .modal {
     display: none;
     position: fixed;
-    z-index: 1000;
-    left: 0;
     top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(3px);
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    overflow: visible;
 }
 
 .modal.active {
     display: flex;
-    animation: modalFadeIn 0.2s ease-out;
+    opacity: 1;
+    justify-content: center;
+    align-items: center;
+    overflow: visible;
 }
 
-@keyframes modalFadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
+.modal-content-large {
+    background-color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(5px);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    margin: 30px;
+    position: relative;
+    width: 90%;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
 
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+#viewCardsModalTitle {
+    flex-shrink: 0;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+}
+
+#viewCardsModalFooter {
+    flex-shrink: 0;
+}
+
+.modal-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.card-in-modal-item {
+    position: relative;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+    transition: all 0.2s ease;
+    cursor: grab;
+}
+
+.card-in-modal-item.dragging-modal-card {
+    opacity: 0.5;
+}
+
+.card-in-modal-item.modal-drag-over {
+    border: 2px dashed #2196F3;
+    background: rgba(33, 150, 243, 0.1);
+}
+
+.modal-card-thumb {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.close-modal-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #000000;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+
+}
+
+.close-modal-button:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.modal-footer {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    overflow: visible;
 }
 
 /* Player Area Styling */
@@ -1012,23 +1161,26 @@ input[readonly] {
 }
 
 .action-button {
-    background-color: #e3f2fd;
-    border: 1px solid #90caf9;
-    color: #1976d2;
-    padding: 4px 8px;
+    padding: 8px 16px;
+    border: none;
     border-radius: 4px;
+    background-color: #314657;
+    color: white;
     cursor: pointer;
-    font-size: 0.9em;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease;
+    font-family: 'Crimson Pro', serif;
 }
 
 .action-button:hover {
-    background-color: #bbdefb;
-    transform: translateY(-1px);
+    background-color: #47719b;
 }
 
-.action-button:active {
-    transform: translateY(0);
+.action-button.secondary-button {
+    background-color: #9e9e9e;
+}
+
+.action-button.secondary-button:hover {
+    background-color: #757575;
 }
 
 /* --- Responsive Adjustments --- */
@@ -1044,47 +1196,37 @@ input[readonly] {
     #deckUploadSection,
     #playerManagementArea {
         min-width: 100%;
-        /* Stack full width on small screens */
     }
 
     .main-zones-row {
-        /* Stack play area and side zones on very small screens */
         flex-direction: column;
         min-height: auto;
-        /* Reset min-height */
     }
 
     .side-zones {
         flex-direction: row;
-        /* Deck and discard side-by-side */
         width: 100%;
-        /* Full width */
+        min-width: 100%;
     }
 
     .deck-zone,
     .discard-zone {
-        height: 100px;
-        /* Adjust height */
+        height: calc(100px * var(--card-size, 1));
     }
 
     .hand-zone {
-        height: 350px;
-        /* Even taller on medium screens to accommodate wrapping */
+        height: calc(350px * var(--card-size, 1));
     }
 
     .player-info-bar {
         flex-wrap: wrap;
-        /* Allow info bar items to wrap */
         gap: 5px;
     }
 
     .life-counter {
         margin-left: 0;
-        /* Remove margin when wrapping */
         width: 100%;
-        /* Take full width if wrapped */
         justify-content: flex-end;
-        /* Align to right if wrapped */
     }
 }
 
@@ -1094,28 +1236,26 @@ input[readonly] {
     .action-button,
     .upload-button-label {
         font-size: 0.9em;
-        /* Slightly smaller fonts for controls */
         padding: 10px 15px;
     }
 
     .card-on-board {
         width: 168px;
-        /* 56px * 3 */
         height: 234px;
-        /* 78px * 3 */
     }
 
     .hand-zone {
-        height: 400px;
-        /* Tallest on small screens to ensure cards are visible */
+        height: calc(400px * var(--card-size, 1));
     }
 
     .deck-preview-grid {
         grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+
     }
 
     .modal-content {
         max-width: 90%;
+        overflow: visible;
     }
 }
 
@@ -1138,6 +1278,7 @@ input[readonly] {
     position: right;
     align-self: center;
 }
+
 .bg-control-button {
     background-color: rgba(255, 255, 255, 0.8);
     border: none;
@@ -1146,13 +1287,8 @@ input[readonly] {
     height: 40px;
     font-size: 20px;
     cursor: pointer;
-    display: flex-right;
-    align-items: centre;
-    align-self: centre;
-    justify-content: right;
     transition: all 0.2s ease;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    margin: 6px;
 }
 
 .bg-control-button:hover {
@@ -1166,7 +1302,7 @@ input[readonly] {
 
 .game-controls {
     display: flex;
-    gap: 10px;
+    gap: 20px;
     align-items: center;
 }
 
@@ -1240,4 +1376,44 @@ input[readonly] {
     color: #7f8c8d;
     font-size: 0.85em;
     margin-left: 16px;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-group label {
+    font-size: 0.9em;
+    color: #2c3e50;
+    white-space: nowrap;
+}
+
+.control-group input[type="range"] {
+    width: 100px;
+    height: 6px;
+    background: #bdc3c7;
+    border-radius: 3px;
+    outline: none;
+}
+
+.control-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #3498db;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.control-group input[type="range"]::-webkit-slider-thumb:hover {
+    background: #2980b9;
+}
+
+.control-group span {
+    font-size: 0.9em;
+    color: #2c3e50;
+    text-align: right;
 }

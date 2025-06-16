@@ -6,15 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TCG Sandbox</title>
     <link rel="stylesheet" href="style.css">
-    <!-- JSZip for ZIP handling -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 
 <body>
     <div id="app-container">
-        <button id="prev-bg" class="bg-control-button" title="Previous Background">←</button>
-        <label class="bg-label">Change Background</label>
-        <button id="next-bg" class="bg-control-button" title="Next Background">→</button>
         <!-- Landing Page Section -->
         <section id="landing-page" class="page active-page">
             <header>
@@ -22,8 +18,12 @@
             </header>
             <footer>
                 <p class="instructions">
-                    Welcome! Enter your name, then host a new game or join an existing one.
-                    No game rules are enforced. Manage everything manually with your friends.
+                    Welcome! <br>
+                    <br>
+                    Enter your name, then host a new game or join an existing one.<br>
+                    No game rules are enforced. Manage everything manually with your friends.<br>
+                    <br>
+                    May fate be in your hands!
                 </p>
             </footer>
             <main>
@@ -42,9 +42,7 @@
                 </div>
             </main>
             <footer>
-                <p class="instructions">
-                    May fate be in your hands.
-                </p>
+
             </footer>
         </section>
 
@@ -62,7 +60,7 @@
                 <div id="playerManagementArea">
                     <h2>Players in Lobby (<span id="playerCountDisplay">0</span>/<span
                             id="maxPlayerCountDisplay">4</span>)</h2>
-                    <!-- Assuming max players might be dynamic or set elsewhere -->
+                    <!-- Max players might be dynamic or set elsewhere -->
                     <ul id="playerList">
                         <!-- Player items will be added here by JS -->
                     </ul>
@@ -100,19 +98,33 @@
                     <button id="confirmDeckButton" class="action-button" disabled>Confirm Deck</button>
                     <button id="clearDeckButton" class="action-button secondary-button" style="display: none;">Upload
                         Different Deck</button>
+                    <button id="startGameButton" class="action-button" disabled>Start Game (Host Only)</button>
                 </div>
             </main>
             <footer>
-                <button id="startGameButton" class="action-button" disabled>Start Game (Host Only)</button>
+
             </footer>
         </section>
         <!-- Game Board Section -->
         <section id="game-board-page" class="page">
             <header>
+                <h1>TCG Sandbox</h1>
                 <div id="gameInfo">
-                    <p>Playing in Game: <strong id="boardGameCodeDisplay">---</strong></p>
-                    <h1>TCG Sandbox</h1>
+                    <p>Game Code: <span id="boardGameCodeDisplay"></span></p>
+                    <button id="prev-bg" class="bg-control-button" title="Previous Background">←</button>
+                    <label class="bg-label">Background</label>
+                    <button id="next-bg" class="bg-control-button" title="Next Background">→</button>
                     <div class="game-controls">
+                        <div class="control-group">
+                            <label for="previewZoomSlider">Zoom:</label>
+                            <input type="range" id="previewZoomSlider" min="1" max="3" step="0.1" value="1.8">
+                            <span id="previewZoomValue">1.8x</span>
+                        </div>
+                        <div class="control-group">
+                            <label for="cardSizeSlider">Card Size:</label>
+                            <input type="range" id="cardSizeSlider" min="0.5" max="1.5" step="0.1" value="1">
+                            <span id="cardSizeValue">100%</span>
+                        </div>
                         <button id="fullscreenButton" class="action-button" title="Toggle Fullscreen">⛶</button>
                         <button id="leaveGameButton" class="action-button secondary-button">Leave Game</button>
                     </div>
@@ -125,11 +137,7 @@
                 <p>Game in progress. All actions are manual.</p>
             </footer>
         </section>
-
-
-
     </div>
-
     <script src="script.js"></script>
 </body>
 
