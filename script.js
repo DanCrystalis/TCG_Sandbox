@@ -68,65 +68,49 @@ document.addEventListener('DOMContentLoaded', () => {
         gameStarted: false
     };
 
-    const backgroundImages = [
-        'bg/bg1.jpg',
-        'bg/bg2.jpg',
-        'bg/bg3.jpg',
-        'bg/bg4.jpg',
-        'bg/bg5.jpg',
-        'bg/bg6.jpg',
-        'bg/bg7.jpg',
-        'bg/bg8.jpg',
-        'bg/bg9.jpg',
-        'bg/bg10.jpg',
-        'bg/bg11.jpg',
-        'bg/bg12.jpg',
-        'bg/bg13.jpg',
-        'bg/bg14.jpg',
-        'bg/bg15.jpg',
-        'bg/bg16.jpg',
-        'bg/bg17.jpg',
-        'bg/bg18.jpg',
-        'bg/bg19.jpg',
-        'bg/bg20.jpg',
-        'bg/bg21.jpg',
-        'bg/bg22.jpg',
-        'bg/bg23.jpg',
-        'bg/bg24.jpg',
-        'bg/bg25.jpg',
-        'bg/bg26.jpg',
-        'bg/bg27.jpg',
-        'bg/bg28.jpg',
-        'bg/bg29.jpg',
-        'bg/bg30.jpg',
-        'bg/bg31.jpg',
-        'bg/bg32.jpg',
-        'bg/bg33.jpg',
-        'bg/bg34.jpg',
-        'bg/bg35.jpg',
-        'bg/bg36.jpg',
-        'bg/bg37.jpg',
-        'bg/bg38.jpg',
-        'bg/bg39.jpg',
-        'bg/bg40.jpg',
-    ];
-
+    let backgroundImages = [];
     let currentBgIndex = 0;
 
+    async function loadBackgroundImages() {
+        try {
+            const response = await fetch('/bg');
+            const files = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(files, 'text/html');
+            const links = doc.getElementsByTagName('a');
+            
+            backgroundImages = Array.from(links)
+                .map(link => link.href)
+                .filter(href => {
+                    const ext = href.split('.').pop().toLowerCase();
+                    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                })
+                .map(href => href.split('/').pop()); 
+
+            if (backgroundImages.length > 0) {
+                document.body.style.backgroundImage = `url('bg/${backgroundImages[0]}')`;
+            }
+        } catch (error) {
+            console.error('Error loading background images:', error);
+        }
+    }
+
     function updateBackground(direction) {
+        if (backgroundImages.length === 0) return;
+
         if (direction === 'next') {
             currentBgIndex = (currentBgIndex + 1) % backgroundImages.length;
         } else {
             currentBgIndex = (currentBgIndex - 1 + backgroundImages.length) % backgroundImages.length;
         }
-        document.body.style.backgroundImage = `url('${backgroundImages[currentBgIndex]}')`;
+        document.body.style.backgroundImage = `url('bg/${backgroundImages[currentBgIndex]}')`;
     }
 
-    // Add event listeners for all background control buttons
+    loadBackgroundImages();
+
     document.getElementById('prev-bg').addEventListener('click', () => updateBackground('prev'));
     document.getElementById('next-bg').addEventListener('click', () => updateBackground('next'));
 
-    // Add keyboard shortcuts for background cycling
     document.addEventListener('keydown', (e) => {
         if (e.altKey) {
             if (e.key === 'ArrowLeft') {
@@ -600,6 +584,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Add dragstart event listener to set up data transfer
         cardDiv.addEventListener('dragstart', (event) => {
+            // FIX: Temporarily disable transitions on the original card to prevent "snapping back" animation.
+            cardDiv.style.transition = 'none';
+
             document.body.classList.add('is-dragging');
             cardDiv.classList.add(DRAGGING_CLASS);
             const sourcePlayerId = cardDiv.closest('.player-area')?.dataset.playerId;
@@ -611,25 +598,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Create a clone of the card for the drag image, ensuring it's upright
             const dragImage = cardDiv.cloneNode(true);
             dragImage.style.position = 'absolute';
-            dragImage.style.top = '-1000px';
-            // Remove transform classes to get an upright image for correct dimension reading
-            dragImage.classList.remove('tapped', 'rotated-180', 'dragging');
-            dragImage.style.transform = 'none';
+            dragImage.style.top = '-1000px'; 
             dragImage.style.opacity = '0.8';
-            document.body.appendChild(dragImage);
-            dragImage.offsetHeight;
 
-            // Get the actual dimensions of the upright clone
+            const wasTapped = dragImage.classList.contains('tapped');
+            const wasRotated180 = dragImage.classList.contains('rotated-180');
+
+            dragImage.classList.remove('tapped', 'rotated-180', 'dragging');
+            
+            document.body.appendChild(dragImage);
+            dragImage.offsetHeight; // Force a reflow to ensure dimensions are calculated correctly.
+            
             const dragImageWidth = dragImage.offsetWidth;
             const dragImageHeight = dragImage.offsetHeight;
-
-            // Set the drag image and center the cursor on it
+            
+            if (wasTapped) dragImage.classList.add('tapped');
+            if (wasRotated180) dragImage.classList.add('rotated-180');
+            
             event.dataTransfer.setDragImage(dragImage, dragImageWidth / 2, dragImageHeight / 2);
 
-            // Remove the temporary element after drag starts
             setTimeout(() => {
                 if (dragImage.parentNode) {
                     document.body.removeChild(dragImage);
@@ -653,12 +642,13 @@ document.addEventListener('DOMContentLoaded', () => {
         cardDiv.addEventListener('dragend', () => {
             document.body.classList.remove('is-dragging');
             cardDiv.classList.remove(DRAGGING_CLASS);
+
+            cardDiv.style.transition = '';
         });
 
         const img = document.createElement('img');
         img.src = cardData.imageDataUrl;
         img.alt = cardData.fileName || 'Card Image';
-        //img.title = cardData.fileName || 'Card Image';
         img.draggable = false;
 
         // Create zoom preview element
@@ -701,7 +691,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Card ${cardDiv.dataset.cardId} left-clicked`);
             if (cardDiv.classList.contains(DRAGGING_CLASS) || event.button !== 0) return;
 
-            // Check if card is in hand zone or discard zone
             const zone = cardDiv.closest('.zone');
             if (zone && (zone.dataset.zoneType === 'hand' || zone.dataset.zoneType === 'discard')) return;
 
@@ -738,7 +727,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // RIGHT CLICK: Context menu
         cardDiv.addEventListener('contextmenu', (event) => {
-            // If card is in discard, do nothing and let the event bubble up to the discard zone's handler.
             if (cardDiv.closest('.discard-zone')) {
                 return;
             }
@@ -819,10 +807,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     }
                                 }
 
-                                // Remove from DOM
                                 cardDiv.remove();
 
-                                // Update zone count
                                 const playerArea = document.getElementById(`player-area-${playerId}`);
                                 if (playerArea) {
                                     updateZoneCardCount(playerArea, 'play');
@@ -832,10 +818,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             }
-
             showContextMenu(event, actions);
         });
-
         return cardDiv;
     }
 
@@ -1507,15 +1491,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         updateCardCountersDisplay(draggedCardElement);
 
                         if (targetCardsContainer) {
-                            targetCardsContainer.appendChild(draggedCardElement); // Simple append for discard
+                            targetCardsContainer.appendChild(draggedCardElement); 
                         } else {
-                            // Should not happen due to earlier check, but as a fallback:
                             findAndRemoveCardFromSourceState(cardToMove.id, targetPlayerId, targetZoneType);
                             addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
                             successfulStateUpdate = false;
                         }
                     }
-                } else { // For hand, play-row1, play-row2
+                } else { 
                     if (addCardToTargetState(cardToMove, targetPlayerId, targetZoneType)) {
                         successfulStateUpdate = true;
 
@@ -1536,12 +1519,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             successfulStateUpdate = false;
                         }
 
-                        // After DOM manipulation, re-sync the logical state array order
                         if (successfulStateUpdate) {
                             if (targetZoneType === 'hand') {
                                 reorderHandStateBasedOnDOM(targetPlayerId);
                             } else if (targetZoneType.startsWith('play-row')) {
-                                reorderPlayZoneStateBasedOnDOM(targetPlayerId); // This reorders the entire playerPlayZonesState
+                                reorderPlayZoneStateBasedOnDOM(targetPlayerId); 
                             }
                         }
                     }
@@ -1561,7 +1543,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         updateZoneCardCount(targetPlayerAreaElem, mainTargetZoneForCount);
                         if (targetZoneType.startsWith('play-row')) updateZoneCardCount(targetPlayerAreaElem, 'play');
                         if (targetZoneType === 'deck') updateZoneCardCount(targetPlayerAreaElem, 'deck');
-                        // For hand/discard, updateZoneCardCount will also handle placeholders if necessary
                     }
                 } else {
                     console.error("Failed to update state or DOM for card move.");

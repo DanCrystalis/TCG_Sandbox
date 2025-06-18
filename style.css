@@ -9,10 +9,9 @@ body {
     min-height: 100vh;
     padding: 20px;
     box-sizing: border-box;
-    background-image: url('bg/bg1.jpg');
     background-size: cover;
     background-position: center;
-    transition: background-image 0.5s ease-in-out;
+    transition: background-image 1.6s ease;
 }
 
 #app-container {
@@ -677,7 +676,7 @@ input[readonly] {
     border: 1px solid #333;
     z-index: 1;
     box-sizing: border-box;
-    border-radius: 0.2cm;
+    border-radius: 4px;
 }
 
 .deck-zone:hover {
@@ -714,7 +713,7 @@ input[readonly] {
 
 .discard-zone {
     background-color: rgba(255, 235, 238, 0.5);
-    border-radius: 0.1 cm;
+    border-radius: 4px;
 }
 
 .discard-zone:hover {
@@ -849,7 +848,7 @@ input[readonly] {
     width: calc(189px * var(--card-size, 1));
     height: calc(264px * var(--card-size, 1));
     background-color: #fff;
-    border-radius: 0.2cm;
+    border-radius: 4px;
     overflow: visible !important;
     display: flex;
     justify-content: center;
@@ -882,7 +881,6 @@ input[readonly] {
 
 .card-on-board.facedown {
     background: linear-gradient(135deg, #616161, #424242);
-    border: 1px solid #333;
 }
 
 .card-on-board.facedown img {
@@ -1283,9 +1281,9 @@ input[readonly] {
     background-color: rgba(255, 255, 255, 0.8);
     border: none;
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    font-size: 20px;
+    width: 25px;
+    height: 25px;
+    font-size: 10px;
     cursor: pointer;
     transition: all 0.2s ease;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
