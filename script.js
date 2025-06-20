@@ -1,4 +1,37 @@
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+//const supabaseUrl = 'https://qwoqmanecbtypdohymzz.supabase.co';
+const supabaseUrl = 'http://127.0.0.1:54321';
+//const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3b3FtYW5lY2J0eXBkb2h5bXp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAyMDU5MjUsImV4cCI6MjA2NTc4MTkyNX0.yv-LNsXVAOUjAojEd_20XgteWhWwsWjX9ruOMte92aQ';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+let currentPlayer = {
+    id: null,
+    name: '',
+    isHost: false,
+    deck: [],
+    deckConfirmed: false,
+    life: 22,
+    energy: 0
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+
+    const savedPlayerInfo = sessionStorage.getItem('tcg-player-info');
+    if (savedPlayerInfo) {
+        try {
+            const parsedInfo = JSON.parse(savedPlayerInfo);
+            if (parsedInfo.id && parsedInfo.name) {
+                currentPlayer.id = parsedInfo.id;
+                currentPlayer.name = parsedInfo.name;
+                console.log('Restored player session:', currentPlayer);
+            }
+        } catch (e) {
+            console.error('Failed to parse saved player info', e);
+            sessionStorage.removeItem('tcg-player-info');
+        }
+    }
+
     // Page elements
     const landingPage = document.getElementById('landing-page');
     const lobbyPage = document.getElementById('lobby-page');
@@ -36,37 +69,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const zoomedCardImage = document.getElementById('zoomedCardImage');
     const closeModalButton = document.querySelector('.close-modal-button');
 
-    let playerDecksState = {};
-    let playerHandsState = {};
-    let playerDiscardsState = {};
-    let playerPlayZonesState = {};
-    let globalTokenCounter = 0;
-
-    const DRAGGING_CLASS = 'dragging';
-
-    // Ensure labels trigger file input clicks
-    const zipUploadLabel = document.querySelector('label[for="zipUploadInput"]');
-    if (zipUploadLabel) zipUploadLabel.addEventListener('click', () => zipUploadInput.click());
-    const batchImageUploadLabel = document.querySelector('label[for="batchImageUploadInput"]');
-    if (batchImageUploadLabel) batchImageUploadLabel.addEventListener('click', () => batchImageUploadInput.click());
-
-
-    let currentPlayer = {
-        id: null,
-        name: '',
-        isHost: false,
-        deck: [],
-        deckConfirmed: false,
-        life: 22, // Default starting life
-        energy: 0
-    };
-
-    let gameSession = {
+    let gameState = {
         code: null,
         players: [],
         maxPlayers: 4,
-        gameStarted: false
+        gameStarted: false,
+        playerDecks: {},
+        playerHands: {},
+        playerDiscards: {},
+        playerPlayZones: {}
     };
+
+    let globalTokenCounter = 0;
+
+    const DRAGGING_CLASS = 'dragging';
 
     let backgroundImages = [];
     let currentBgIndex = 0;
@@ -78,14 +94,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const parser = new DOMParser();
             const doc = parser.parseFromString(files, 'text/html');
             const links = doc.getElementsByTagName('a');
-            
+
             backgroundImages = Array.from(links)
                 .map(link => link.href)
                 .filter(href => {
                     const ext = href.split('.').pop().toLowerCase();
                     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
                 })
-                .map(href => href.split('/').pop()); 
+                .map(href => href.split('/').pop());
 
             if (backgroundImages.length > 0) {
                 document.body.style.backgroundImage = `url('bg/${backgroundImages[0]}')`;
@@ -121,6 +137,208 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+
+    async function syncGameStateToServer(action) {
+        if (!gameState.code) {
+            console.error("Cannot sync state: No game code.");
+            return;
+        }
+
+        console.log("1. CLICKED CONFIRM. Sending action to server:", action);
+
+        try {
+            const { data, error } = await supabase.functions.invoke('update-game-state', {
+                body: {
+                    gameCode: gameState.code,
+                    action: action
+                }
+            });
+
+            if (error) {
+                console.error(`Error performing action '${action.type}':`, error);
+                alert(`An error occurred: ${error.message}. The game might be out of sync. Please consider refreshing.`);
+                return;
+            }
+
+            console.log("2. CLIENT: Server response received:", data);
+            // Workaround removed: Do not update local state or call renderFromGameState here.
+            // The UI will update automatically when the realtime event is received.
+        } catch (err) {
+            console.error("Network or other error during sync:", err);
+            alert(`Network error: ${err.message}. Please check your connection and try again.`);
+        }
+
+        // The UI will update automatically when the realtime event is received.
+        // We don't need to do anything with `data` here.
+    }
+
+    function renderGameState(state) {
+        console.log("RENDER: Rendering game state:", {
+            gameStarted: state.gameStarted,
+            playerDecks: state.playerDecks,
+            playerHands: state.playerHands,
+            players: state.players.map(p => ({ id: p.id, name: p.name, deckLength: p.deck?.length }))
+        });
+        
+        // Update player stats (life, energy)
+        state.players.forEach(p => {
+            const playerArea = document.getElementById(`player-area-${p.id}`);
+            if (!playerArea) return;
+
+            const lifeDisplay = playerArea.querySelector('.life-total');
+            if (lifeDisplay) lifeDisplay.textContent = p.life;
+
+            const energyDisplay = playerArea.querySelector('.energy-counter .life-total');
+            if (energyDisplay) energyDisplay.textContent = p.energy || 0;
+        });
+
+        // Update hands
+        for (const playerId in state.playerHands) {
+            const handZoneContainer = document.querySelector(`#hand-zone-${playerId} .cards-in-zone-container`);
+            if (!handZoneContainer) continue;
+
+            handZoneContainer.innerHTML = ''; // Clear the zone
+            if (state.playerHands[playerId].length === 0) {
+                handZoneContainer.innerHTML = '<span class="placeholder-text">Hand</span>';
+            } else {
+                state.playerHands[playerId].forEach(cardData => {
+                    const cardElement = createCardElement(cardData);
+                    console.log(`Created card element for ${cardData.id}:`, {
+                        draggable: cardElement.draggable,
+                        className: cardElement.className,
+                        dataset: cardElement.dataset
+                    });
+                    handZoneContainer.appendChild(cardElement);
+                });
+            }
+            updateZoneCardCount(document.getElementById(`player-area-${playerId}`), 'hand');
+        }
+
+        // Update play zones
+        for (const playerId in state.playerPlayZones) {
+            const playZone = document.getElementById(`play-zone-${playerId}`);
+            if (!playZone) continue;
+
+            const row1Container = playZone.querySelector(`#play-zone-${playerId}-row1`);
+            const row2Container = playZone.querySelector(`#play-zone-${playerId}-row2`);
+
+            // Clear both rows
+            [row1Container, row2Container].forEach(container => {
+                if (container) {
+                    container.innerHTML = '';
+                    container.innerHTML = `<span class="placeholder-text">${container.id.includes('row1') ? 'Manifest Row' : 'Aether Row'}</span>`;
+                }
+            });
+
+            // Add cards to appropriate rows
+            state.playerPlayZones[playerId].forEach(cardData => {
+                const targetRow = cardData.row === 'row2' ? row2Container : row1Container;
+                if (targetRow) {
+                    const placeholder = targetRow.querySelector('.placeholder-text');
+                    if (placeholder) placeholder.remove();
+                    const cardElement = createCardElement(cardData);
+                    targetRow.appendChild(cardElement);
+                }
+            });
+
+            updateZoneCardCount(document.getElementById(`player-area-${playerId}`), 'play');
+        }
+
+        // Update discard piles
+        for (const playerId in state.playerDiscards) {
+            const discardZoneContainer = document.querySelector(`#discard-zone-${playerId} .cards-in-zone-container`);
+            if (!discardZoneContainer) continue;
+
+            discardZoneContainer.innerHTML = ''; // Clear the zone
+            if (state.playerDiscards[playerId].length === 0) {
+                discardZoneContainer.innerHTML = '<span class="placeholder-text">Discard</span>';
+            } else {
+                state.playerDiscards[playerId].forEach(cardData => {
+                    const cardElement = createCardElement(cardData);
+                    discardZoneContainer.appendChild(cardElement);
+                });
+            }
+            updateZoneCardCount(document.getElementById(`player-area-${playerId}`), 'discard');
+        }
+
+        // Update deck counts
+        for (const playerId in state.playerDecks) {
+            updateZoneCardCount(document.getElementById(`player-area-${playerId}`), 'deck');
+        }
+    }
+
+    let gameChannel;
+
+    function connectToGameChannel(gameCode) {
+        // If we're already subscribed to a channel, unsubscribe first
+        if (gameChannel) {
+            supabase.removeChannel(gameChannel);
+        }
+
+        gameChannel = supabase.channel(`game:${gameCode}`, {
+            config: {
+                broadcast: {
+                    self: true, // Receive our own broadcasts
+                },
+            },
+        });
+
+        gameChannel
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'games',
+                    filter: `code=eq.${gameCode}`
+                },
+                (payload) => {
+                    console.log('3. CLIENT: Received state update from server.');
+                    console.log('Authoritative game state received from server!', payload);
+
+                    // 1. Overwrite the entire local state with the new, authoritative state
+                    gameState = payload.new.game_state;
+                    console.log("3a. CLIENT: Full gameState received:", JSON.parse(JSON.stringify(gameState)));
+                    
+                    // 2. *** NEW: Find our own player data in the new state ***
+                    const selfInNewState = gameState.players.find(p => p.id === currentPlayer.id);
+
+                    // 3. *** NEW: Synchronize the local currentPlayer object ***
+                    if (selfInNewState) {
+                        // Update the properties that might change, like deck status
+                        console.log("3b. CLIENT: Found myself in new state. My deckConfirmed status is:", selfInNewState.deckConfirmed);
+                        currentPlayer.deckConfirmed = selfInNewState.deckConfirmed;
+                        currentPlayer.deck = selfInNewState.deck;
+                        currentPlayer.isHost = selfInNewState.isHost;
+                        currentPlayer.life = selfInNewState.life;
+                        currentPlayer.energy = selfInNewState.energy;
+                        // You could update everything for safety:
+                        // Object.assign(currentPlayer, selfInNewState);
+                    }
+                    else {
+                        // Add this log
+                        console.log("3b. CLIENT ERROR: Could not find myself in the new state update.");
+                    }
+                    
+                    // 4. Now, call the single, powerful render function
+                    console.log("3c. CLIENT: About to call renderFromGameState()");
+                    renderFromGameState();
+                    console.log("3d. CLIENT: renderFromGameState() completed");
+                }
+            )
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, (payload) => {
+                console.log('DEBUG: Received ANY games table change:', payload);
+            })
+            .subscribe((status) => {
+                console.log(`Realtime subscription status for game ${gameCode}:`, status);
+                if (status === 'SUBSCRIBED') {
+                    console.log(`Successfully subscribed to game ${gameCode}!`);
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error(`Failed to subscribe to game ${gameCode}!`);
+                }
+            });
+    }
+
     function showPage(pageId) {
         document.querySelectorAll('.page').forEach(page => page.classList.remove('active-page'));
         const targetPage = document.getElementById(pageId);
@@ -129,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             console.error(`Page with ID "${pageId}" not found.`);
         }
-        window.scrollTo(0, 0);
+        // window.scrollTo(0, 0); // Remove this to prevent scroll reset after every action
     }
 
     function generateGameCode() {
@@ -137,13 +355,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateLobbyUI() {
-        if (!gameSession.code || !playerListUl || !playerCountDisplay || !deckStatusIndicator || !startGameButton || !deckUploadControls || !confirmDeckButton || !clearDeckButton) {
+        if (!gameState.code || !playerListUl || !playerCountDisplay || !deckStatusIndicator || !startGameButton || !deckUploadControls || !confirmDeckButton || !clearDeckButton) {
             console.warn("Lobby UI update called but some elements are missing.");
             return;
         }
 
         playerListUl.innerHTML = '';
-        gameSession.players.forEach(p => {
+        gameState.players.forEach(p => {
             const li = document.createElement('li');
             const nameSpan = document.createElement('span');
             nameSpan.className = 'player-name';
@@ -169,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
             li.appendChild(statusSpan);
             playerListUl.appendChild(li);
         });
-        playerCountDisplay.textContent = gameSession.players.length;
+        playerCountDisplay.textContent = gameState.players.length;
 
         if (currentPlayer.deckConfirmed) {
             deckStatusIndicator.textContent = `(Deck Confirmed: ${currentPlayer.deck.length} cards)`;
@@ -184,9 +402,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentPlayer.isHost) {
             startGameButton.style.display = 'inline-block';
-            const allPlayersReady = gameSession.players.length > 0 && gameSession.players.every(p => p.deckConfirmed);
-            const enoughPlayers = gameSession.players.length >= 1; // Min 1 player to start (e.g. solo)
+            const allPlayersReady = gameState.players.length > 0 && gameState.players.every(p => p.deckConfirmed);
+            const enoughPlayers = gameState.players.length >= 1; // Min 1 player to start (e.g. solo)
+            console.log("4. UI UPDATE CHECK: allPlayersReady:", allPlayersReady, "enoughPlayers:", enoughPlayers);
+            console.log("   - Player statuses:", gameState.players.map(p => ({ name: p.name, confirmed: p.deckConfirmed, id: p.id })));
+            console.log("   - Current player deckConfirmed:", currentPlayer.deckConfirmed);
+            console.log("   - Game state players:", gameState.players);
             startGameButton.disabled = !(allPlayersReady && enoughPlayers);
+            console.log("   - Start game button disabled:", startGameButton.disabled);
         } else {
             startGameButton.style.display = 'none';
         }
@@ -205,12 +428,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addPlayerToSession(playerData) {
-        if (gameSession.players.length >= gameSession.maxPlayers) {
+        if (gameState.players.length >= gameState.maxPlayers) {
             alert("Lobby is full.");
             return false;
         }
         // Allow same name if IDs are different (e.g. reconnect), but prevent duplicate active players with same name if ID is different
-        if (gameSession.players.some(p => p.name === playerData.name && p.id !== playerData.id)) {
+        if (gameState.players.some(p => p.name === playerData.name && p.id !== playerData.id)) {
             // This check might be too strict if rejoining is allowed. For now, assume unique names.
             // alert("A player with that name is already in the lobby. Please choose a different name.");
             // return false;
@@ -220,11 +443,11 @@ document.addEventListener('DOMContentLoaded', () => {
             playerData.life = 22;
         }
 
-        const existingPlayerIndex = gameSession.players.findIndex(p => p.id === playerData.id);
+        const existingPlayerIndex = gameState.players.findIndex(p => p.id === playerData.id);
         if (existingPlayerIndex > -1) {
-            gameSession.players[existingPlayerIndex] = { ...gameSession.players[existingPlayerIndex], ...playerData };
+            gameState.players[existingPlayerIndex] = { ...gameState.players[existingPlayerIndex], ...playerData };
         } else {
-            gameSession.players.push(playerData);
+            gameState.players.push(playerData);
         }
         return true;
     }
@@ -234,22 +457,22 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlayer.life = 22;
 
         if (isHost) {
-            gameSession.code = generateGameCode();
-            gameSession.players = []; // Host always starts with a fresh player list for their game
+            gameState.code = generateGameCode();
+            gameState.players = []; // Host always starts with a fresh player list for their game
         } else {
-            gameSession.code = gameCodeInput.value.trim().toUpperCase();
-            // If joining, we don't clear gameSession.players here.
+            gameState.code = gameCodeInput.value.trim().toUpperCase();
+            // If joining, we don't clear gameState.players here.
             // It would be populated by a "server" or host's broadcast in a real app.
-            // For this sandbox, if gameSession.players is empty and we join, it'll just be us.
+            // For this sandbox, if gameState.players is empty and we join, it'll just be us.
         }
 
         if (!addPlayerToSession({ ...currentPlayer, deck: currentPlayer.deck || [], deckConfirmed: currentPlayer.deckConfirmed || false })) {
-            gameSession.code = null; // Failed to add current player
+            gameState.code = null; // Failed to add current player
             return false;
         }
 
-        if (gameCodeDisplay) gameCodeDisplay.textContent = gameSession.code;
-        const shareableLink = `${window.location.origin}${window.location.pathname}?join=${gameSession.code}`;
+        if (gameCodeDisplay) gameCodeDisplay.textContent = gameState.code;
+        const shareableLink = `${window.location.origin}${window.location.pathname}?join=${gameState.code}`;
         if (shareLinkDisplay) {
             shareLinkDisplay.value = shareableLink;
             shareLinkDisplay.onclick = () => {
@@ -268,58 +491,101 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
-    if (hostGameButton) {
-        hostGameButton.addEventListener('click', () => {
-            const name = playerNameInput.value.trim();
-            if (!name) {
-                alert('Please enter your display name.');
-                playerNameInput.focus();
-                return;
-            }
-            currentPlayer.name = name;
-            currentPlayer.id = `player_${Date.now()}`;
+    // Add event listeners for host and join buttons
+    hostGameButton.addEventListener('click', async () => {
+        const name = playerNameInput.value.trim();
+        if (!name) {
+            alert('Please enter your name before hosting a game.');
+            return;
+        }
 
-            if (initializeLobby(true)) {
-                // Bots for local testing
-                setTimeout(() => {
-                    if (gameSession.players.length < gameSession.maxPlayers && currentPlayer.isHost) {
-                        const botBobDeck = Array(30).fill(0).map((_, i) => ({ id: `bot_bob_card_${i}`, imageDataUrl: `https://via.placeholder.com/63x88/ADD8E6/000000?text=Bob${i + 1}`, fileName: `bob_card_${i + 1}.png` }));
-                        addPlayerToSession({
-                            id: `bot_bob_${Date.now()}`, name: 'Bot Bob', isHost: false, deck: botBobDeck, deckConfirmed: true, life: 22
-                        });
-                        updateLobbyUI();
-                    }
-                }, 200);
-            }
+        currentPlayer.name = name;
+        currentPlayer.id = `player_${Date.now()}`;
+        currentPlayer.isHost = true;
+        currentPlayer.deck = [];
+        currentPlayer.deckConfirmed = false;
+        currentPlayer.life = 22;
+        currentPlayer.energy = 0;
+        sessionStorage.setItem('tcg-player-info', JSON.stringify({ id: currentPlayer.id, name: currentPlayer.name }));
+
+        const gameCode = generateGameCode();
+
+        // This is the initial state of our game
+        const initialGameState = {
+            players: [currentPlayer], // Start with just the host
+            gameStarted: false,
+            maxPlayers: 4
+        };
+
+        // Insert the new game into the database
+        const { data, error } = await supabase
+            .from('games')
+            .insert({
+                code: gameCode,
+                host_id: currentPlayer.id,
+                game_state: initialGameState
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error hosting game:', error);
+            alert('Could not create the game. The code might be taken. Please try again.');
+            return;
+        }
+
+        // If successful, set the local game session and connect to it
+        gameState.code = gameCode;
+        gameState.players = initialGameState.players;
+        gameState.gameStarted = false;
+
+        // Connect to the game channel
+        console.log("HOST: About to connect to game channel for code:", gameCode);
+        connectToGameChannel(gameCode);
+
+        // Update UI and show lobby
+        showPage('lobby-page');
+        if (gameCodeDisplay) gameCodeDisplay.textContent = gameState.code;
+        updateLobbyUI();
+    });
+
+    joinGameButton.addEventListener('click', async () => {
+        const name = playerNameInput.value.trim();
+        const code = gameCodeInput.value.trim().toUpperCase();
+        if (!name || !code) {
+            alert('Please enter your name and a game code.');
+            return;
+        }
+
+        // Prepare the new player object
+        currentPlayer.name = name;
+        currentPlayer.id = `player_${Date.now()}`;
+        currentPlayer.isHost = false;
+        currentPlayer.deck = [];
+        currentPlayer.deckConfirmed = false;
+        currentPlayer.life = 22;
+        currentPlayer.energy = 0;
+        sessionStorage.setItem('tcg-player-info', JSON.stringify({ id: currentPlayer.id, name: currentPlayer.name }));
+
+        // Set the game code for the session
+        gameState.code = code;
+
+        // Tell the server we want to join. The server will handle adding the player safely.
+        await syncGameStateToServer({
+            type: 'JOIN_GAME',
+            payload: { newPlayer: currentPlayer }
         });
-    }
 
-    if (joinGameButton) {
-        joinGameButton.addEventListener('click', () => {
-            const name = playerNameInput.value.trim();
-            const code = gameCodeInput.value.trim().toUpperCase();
-            if (!name) {
-                alert('Please enter your display name.');
-                playerNameInput.focus();
-                return;
-            }
-            if (!code) {
-                alert('Please enter a game code.');
-                gameCodeInput.focus();
-                return;
-            }
-            currentPlayer.name = name;
-            currentPlayer.id = `player_${Date.now()}`;
+        // After telling the server, we connect to the channel to get updates
+        console.log("JOIN: About to connect to game channel for code:", code);
+        connectToGameChannel(code);
 
-            // For a pure client-side sandbox, if joining a code that isn't the one currently
-            // "hosted" by this client's gameSession, we effectively start a new local session context.
-            // A real app would fetch game state for 'code' from a server.
-            if (!gameSession.code || gameSession.code !== code) {
-                gameSession.players = [];
-            }
-            initializeLobby(false);
-        });
-    }
+        // The realtime listener will handle updating the UI and showing the lobby page
+        // For a better user experience, we can preemptively show the lobby
+        showPage('lobby-page');
+        if (gameCodeDisplay) gameCodeDisplay.textContent = gameState.code;
+        // We don't call updateLobbyUI() here, as we wait for the server's authoritative state.
+    });
 
     async function processFilesForDeck(files) {
         if (!files || files.length === 0) return;
@@ -331,11 +597,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         currentPlayer.deck = [];
-        if (deckPreviewArea) deckPreviewArea.innerHTML = '<p class="placeholder-text">Processing cards...</p>';
+
+        // Show a loading indicator
+        if (deckPreviewArea) deckPreviewArea.innerHTML = '<p class="placeholder-text">Uploading and processing cards...</p>';
         if (confirmDeckButton) confirmDeckButton.disabled = true;
 
         const newCardObjects = [];
-        let cardIdCounter = 0; // Used to ensure unique IDs for cards processed in this batch
+        let cardIdCounter = 0;
 
         for (const file of Array.from(files)) {
             if (file.type === 'application/zip' || file.name.toLowerCase().endsWith('.zip')) {
@@ -350,29 +618,71 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                     const imageBlobs = await Promise.all(imagePromises);
-                    imageBlobs.forEach(({ blob, fileName }) => {
+
+                    for (const { blob, fileName } of imageBlobs) {
                         const cardId = `card_${currentPlayer.id}_${Date.now()}_${cardIdCounter++}`;
-                        newCardObjects.push({ id: cardId, imageDataUrl: URL.createObjectURL(blob), fileName });
-                    });
+                        const filePath = `${currentPlayer.id}/${cardId}-${fileName}`;
+
+                        // Upload to Supabase Storage
+                        const { error: uploadError } = await supabase.storage
+                            .from('card-images')
+                            .upload(filePath, blob, {
+                                cacheControl: '3600', // Cache for 1 hour
+                                upsert: true
+                            });
+
+                        if (uploadError) {
+                            console.error('Error uploading card image:', uploadError);
+                            continue; // Skip this card
+                        }
+
+                        // Get the public URL
+                        const { data: urlData } = supabase.storage
+                            .from('card-images')
+                            .getPublicUrl(filePath);
+
+                        newCardObjects.push({ id: cardId, publicUrl: urlData.publicUrl, fileName });
+                    }
                 } catch (error) {
                     console.error("Error processing ZIP:", error);
                     alert('Failed to process ZIP file. It might be corrupted or in an unsupported format.');
                 }
             } else if (file.type.startsWith('image/')) {
                 const cardId = `card_${currentPlayer.id}_${Date.now()}_${cardIdCounter++}`;
-                newCardObjects.push({ id: cardId, imageDataUrl: URL.createObjectURL(file), fileName: file.name });
+                const filePath = `${currentPlayer.id}/${cardId}-${file.name}`;
+
+                // Upload to Supabase Storage
+                const { error: uploadError } = await supabase.storage
+                    .from('card-images')
+                    .upload(filePath, file, {
+                        cacheControl: '3600',
+                        upsert: true
+                    });
+
+                if (uploadError) {
+                    console.error('Error uploading card image:', uploadError);
+                    continue; // Skip this card
+                }
+
+                // Get the public URL
+                const { data: urlData } = supabase.storage
+                    .from('card-images')
+                    .getPublicUrl(filePath);
+
+                newCardObjects.push({ id: cardId, publicUrl: urlData.publicUrl, fileName: file.name });
             }
         }
+
         currentPlayer.deck = newCardObjects;
         renderDeckPreview();
 
-        const playerInSession = gameSession.players.find(p => p.id === currentPlayer.id);
+        const playerInSession = gameState.players.find(p => p.id === currentPlayer.id);
         if (playerInSession) {
             playerInSession.deck = currentPlayer.deck;
             playerInSession.deckConfirmed = false;
         }
-        currentPlayer.deckConfirmed = false; +
-            updateLobbyUI();
+        currentPlayer.deckConfirmed = false;
+        updateLobbyUI();
     }
 
     function renderDeckPreview() {
@@ -387,9 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cardDiv = document.createElement('div');
             cardDiv.className = 'card-thumbnail-container';
             const img = document.createElement('img');
-            img.src = card.imageDataUrl;
-            //img.alt = card.fileName;
-            //img.title = card.fileName;
+            img.src = card.publicUrl;
             cardDiv.appendChild(img);
             deckPreviewArea.appendChild(cardDiv);
         });
@@ -423,69 +731,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, false);
 
+    // Add drag event prevention for the game board
+    ['dragenter', 'dragover', 'drop'].forEach(eventName => {
+        document.addEventListener(eventName, preventDefaults, false);
+    });
 
     if (confirmDeckButton) {
-        confirmDeckButton.addEventListener('click', () => {
-            if (currentPlayer.deck.length === 0) { alert('Please upload some cards to your deck first.'); return; }
-            currentPlayer.deckConfirmed = true;
-            const playerInSession = gameSession.players.find(p => p.id === currentPlayer.id);
-            if (playerInSession) {
-                playerInSession.deckConfirmed = true;
-                playerInSession.deck = currentPlayer.deck;
+        confirmDeckButton.addEventListener('click', async () => {
+            if (currentPlayer.deck.length === 0) {
+                alert('Please upload some cards to your deck first.');
+                return;
             }
-            updateLobbyUI();
+
+            console.log("1. CLICKED CONFIRM. Sending action to server.");
+
+            await syncGameStateToServer({
+                type: 'CONFIRM_DECK',
+                payload: {
+                    playerId: currentPlayer.id,
+                    deck: currentPlayer.deck
+                }
+            });
+
+            // The workaround in syncGameStateToServer will handle the immediate UI update
         });
     }
 
     if (clearDeckButton) {
-        clearDeckButton.addEventListener('click', () => {
-            if (currentPlayer.deck && currentPlayer.deck.length > 0) {
-                currentPlayer.deck.forEach(card => {
-                    if (card.imageDataUrl && card.imageDataUrl.startsWith('blob:')) {
-                        URL.revokeObjectURL(card.imageDataUrl);
-                    }
-                });
-            }
-            currentPlayer.deck = [];
-            currentPlayer.deckConfirmed = false;
-            const playerInSession = gameSession.players.find(p => p.id === currentPlayer.id);
-            if (playerInSession) {
-                playerInSession.deckConfirmed = false;
-                playerInSession.deck = [];
-            }
+        clearDeckButton.addEventListener('click', async () => {
+            await syncGameStateToServer({
+                type: 'CLEAR_DECK',
+                payload: {
+                    playerId: currentPlayer.id
+                }
+            });
+
+            // Also reset the local file inputs for a better UX
             if (zipUploadInput) zipUploadInput.value = '';
-            if (batchImageUploadInput) batchImageUploadInput.value = ''; // Reset file input
-            renderDeckPreview();
-            updateLobbyUI();
+            if (batchImageUploadInput) batchImageUploadInput.value = '';
         });
     }
 
     if (startGameButton) {
-        startGameButton.addEventListener('click', () => {
+        startGameButton.addEventListener('click', async () => { // Note the 'async'
             if (!currentPlayer.isHost) {
                 alert("Only the host can start the game.");
                 return;
             }
-            const allPlayersReady = gameSession.players.length > 0 && gameSession.players.every(p => p.deckConfirmed);
-            const enoughPlayers = gameSession.players.length >= 1;
+            // ... (all the checks for players ready can remain)
+            const allPlayersReady = gameState.players.length > 0 && gameState.players.every(p => p.deckConfirmed);
+            const enoughPlayers = gameState.players.length >= 1;
+            if (!allPlayersReady || !enoughPlayers) {
+                alert('Waiting for all players to confirm their decks, or not enough players.');
+                return;
+            }
 
-            if (!enoughPlayers) {
-                alert("Not enough players to start. Minimum is 1.");
-                return;
-            }
-            if (!allPlayersReady) {
-                alert('Waiting for all players to confirm their decks.');
-                return;
-            }
-            gameSession.gameStarted = true;
-            console.log('Game starting with session:', JSON.parse(JSON.stringify(gameSession)));
-            initializeGameBoard(gameSession);
+            // Tell the server to start the game.
+            // The server will set gameStarted=true and broadcast it to everyone.
+            await syncGameStateToServer({ type: 'START_GAME' });
+
+            // DO NOT call initializeGameBoard here. The realtime listener will do it for everyone
+            // at the same time when it receives the 'gameStarted: true' update.
         });
     }
 
     if (leaveGameButton) {
-        leaveGameButton.addEventListener('click', () => {
+        leaveGameButton.addEventListener('click', async () => {
             if (confirm("Are you sure you want to leave the game? This will end the current session for you.")) {
+                // Clean up blob URLs
                 if (currentPlayer.deck && currentPlayer.deck.length > 0) {
                     currentPlayer.deck.forEach(card => {
                         if (card.imageDataUrl && card.imageDataUrl.startsWith('blob:')) {
@@ -493,8 +806,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-
-                [playerDecksState, playerHandsState, playerDiscardsState, playerPlayZonesState].forEach(stateObject => {
+sessionStorage.removeItem('tcg-player-info');
+                [gameState.playerDecks, gameState.playerHands, gameState.playerDiscards, gameState.playerPlayZones].forEach(stateObject => {
                     Object.values(stateObject).forEach(cardArray => {
                         if (Array.isArray(cardArray)) {
                             cardArray.forEach(card => {
@@ -506,21 +819,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
 
+                if (gameState.code) {
+                    // Tell the server this player is leaving.
+                    await syncGameStateToServer({
+                        type: 'LEAVE_GAME',
+                        payload: { playerId: currentPlayer.id }
+                    });
+
+                    // Unsubscribe from the game channel
+                    if (gameChannel) {
+                        supabase.removeChannel(gameChannel);
+                        gameChannel = null; // Important to nullify
+                    }
+                }
+
+                // Reset local state
                 currentPlayer.deck = [];
                 currentPlayer.deckConfirmed = false;
                 currentPlayer.isHost = false;
 
-                gameSession.gameStarted = false;
-                gameSession.code = null;
-                gameSession.players = [];
+                gameState.gameStarted = false;
+                gameState.code = null;
+                gameState.players = [];
 
-                playerDecksState = {};
-                playerHandsState = {};
-                playerDiscardsState = {};
-                playerPlayZonesState = {};
-                globalTokenCounter = 0;
+                gameState.playerDecks = {};
+                gameState.playerHands = {};
+                gameState.playerDiscards = {};
+                gameState.playerPlayZones = {};
 
-
+                // Reset UI
                 if (gameCodeDisplay) gameCodeDisplay.textContent = "---";
                 if (shareLinkDisplay) shareLinkDisplay.value = "---";
                 if (playerListUl) playerListUl.innerHTML = '';
@@ -536,7 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.addEventListener('beforeunload', (event) => {
-        if (gameSession.gameStarted || (currentPlayer.deck && currentPlayer.deck.length > 0)) {
+        if (gameState.gameStarted || (currentPlayer.deck && currentPlayer.deck.length > 0)) {
         }
 
         if (currentPlayer.deck) {
@@ -546,7 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-        [playerDecksState, playerHandsState, playerDiscardsState, playerPlayZonesState].forEach(stateObject => {
+        [gameState.playerDecks, gameState.playerHands, gameState.playerDiscards, gameState.playerPlayZones].forEach(stateObject => {
             Object.values(stateObject).forEach(cardArray => {
                 if (Array.isArray(cardArray)) {
                     cardArray.forEach(card => {
@@ -581,16 +908,33 @@ document.addEventListener('DOMContentLoaded', () => {
         cardDiv.dataset.rotation = cardData.rotation || '0';
         cardDiv.dataset.counters = cardData.counters || '[]';
         cardDiv.draggable = true;
+        
+        console.log(`Setting draggable=true for card ${cardData.id}, draggable property is now:`, cardDiv.draggable);
 
         // Add dragstart event listener to set up data transfer
         cardDiv.addEventListener('dragstart', (event) => {
+            console.log('=== DRAG START TRIGGERED ===');
+            console.log('Drag start triggered for card:', cardData.id);
+            console.log('Event details:', {
+                type: event.type,
+                target: event.target,
+                currentTarget: event.currentTarget,
+                draggable: event.target.draggable
+            });
+            
             // FIX: Temporarily disable transitions on the original card to prevent "snapping back" animation.
             cardDiv.style.transition = 'none';
 
             document.body.classList.add('is-dragging');
             cardDiv.classList.add(DRAGGING_CLASS);
             const sourcePlayerId = cardDiv.closest('.player-area')?.dataset.playerId;
-            const sourceZoneType = cardDiv.closest('.zone')?.dataset.zoneType;
+            let sourceZoneType = cardDiv.closest('.zone')?.dataset.zoneType;
+            // PATCH: If dragging from play, use the card's row property for the source zone
+            if (sourceZoneType === 'play' && cardData.row) {
+                sourceZoneType = `play-row${cardData.row === 'row2' ? '2' : '1'}`;
+            }
+
+            console.log('Source player ID:', sourcePlayerId, 'Source zone type:', sourceZoneType);
 
             if (!sourcePlayerId || !sourceZoneType) {
                 console.error("Could not determine source player or zone for drag:", cardDiv);
@@ -599,24 +943,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const dragImage = cardDiv.cloneNode(true);
+            dragImage.draggable = true; // Ensure dragImage is draggable for browser compatibility
             dragImage.style.position = 'absolute';
-            dragImage.style.top = '-1000px'; 
+            dragImage.style.top = '-1000px';
             dragImage.style.opacity = '0.8';
 
             const wasTapped = dragImage.classList.contains('tapped');
             const wasRotated180 = dragImage.classList.contains('rotated-180');
 
             dragImage.classList.remove('tapped', 'rotated-180', 'dragging');
-            
+
             document.body.appendChild(dragImage);
             dragImage.offsetHeight; // Force a reflow to ensure dimensions are calculated correctly.
-            
+
             const dragImageWidth = dragImage.offsetWidth;
             const dragImageHeight = dragImage.offsetHeight;
-            
+
             if (wasTapped) dragImage.classList.add('tapped');
             if (wasRotated180) dragImage.classList.add('rotated-180');
-            
+
             event.dataTransfer.setDragImage(dragImage, dragImageWidth / 2, dragImageHeight / 2);
 
             setTimeout(() => {
@@ -640,6 +985,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         cardDiv.addEventListener('dragend', () => {
+            console.log('=== DRAG END TRIGGERED ===');
+            console.log('Drag end for card:', cardData.id);
             document.body.classList.remove('is-dragging');
             cardDiv.classList.remove(DRAGGING_CLASS);
 
@@ -647,14 +994,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const img = document.createElement('img');
-        img.src = cardData.imageDataUrl;
+        // Handle both imageDataUrl and publicUrl fields
+        const imageUrl = cardData.imageDataUrl || cardData.publicUrl;
+        if (!imageUrl) {
+            console.error('Card missing image URL:', cardData);
+            img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjMiIGhlaWdodD0iODgiIHZpZXdCb3g9IjAgMCA2MyA4OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYzIiBoZWlnaHQ9Ijg4IiBmaWxsPSIjY2NjY2NjIi8+Cjx0ZXh0IHg9IjMxLjUiIHk9IjQ0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjMDAwIj5Ccm9rZW4gSW1hZ2U8L3RleHQ+Cjwvc3ZnPgo=';
+        } else {
+            img.src = imageUrl;
+        }
         img.alt = cardData.fileName || 'Card Image';
         img.draggable = false;
 
         // Create zoom preview element
         const zoomPreview = document.createElement('img');
         zoomPreview.className = 'zoom-preview';
-        zoomPreview.src = cardData.imageDataUrl;
+        zoomPreview.src = imageUrl || img.src;
         zoomPreview.alt = `${cardData.fileName} (Zoomed)`;
         cardDiv.appendChild(zoomPreview);
 
@@ -688,41 +1042,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // LEFT CLICK: Tap/Untap
         cardDiv.addEventListener('click', (event) => {
-            console.log(`Card ${cardDiv.dataset.cardId} left-clicked`);
             if (cardDiv.classList.contains(DRAGGING_CLASS) || event.button !== 0) return;
 
             const zone = cardDiv.closest('.zone');
-            if (zone && (zone.dataset.zoneType === 'hand' || zone.dataset.zoneType === 'discard')) return;
+            // A card must be in the play zone to be tapped.
+            if (!zone || zone.dataset.zoneType !== 'play') return;
 
-            const isTapped = cardDiv.dataset.isTapped === 'true';
-            const newTappedState = !isTapped;
-            cardDiv.classList.toggle('tapped', newTappedState);
-            cardDiv.dataset.isTapped = newTappedState.toString();
+            const cardId = cardDiv.dataset.cardId;
+            const playerId = cardDiv.closest('.player-area').dataset.playerId;
 
-            if (newTappedState) {
-                cardDiv.dataset.rotation = '90';
-            } else {
-                if (cardDiv.classList.contains('rotated-180')) {
-                    cardDiv.dataset.rotation = '180';
-                } else {
-                    cardDiv.dataset.rotation = '0';
+            // Send a specific, small action to the server. That's it.
+            syncGameStateToServer({
+                type: 'TOGGLE_TAP',
+                payload: {
+                    playerId: playerId,
+                    cardId: cardId
                 }
-            }
-            console.log(`Card ${cardDiv.dataset.cardId} tapped: ${newTappedState}, rotation: ${cardDiv.dataset.rotation}`);
+            });
         });
 
         // DOUBLE CLICK: Rotate 180 degrees
         cardDiv.addEventListener('dblclick', (event) => {
-            console.log(`Card ${cardDiv.dataset.cardId} double-clicked`);
-            const isRotated180 = cardDiv.classList.contains('rotated-180');
-            const newRotated180State = !isRotated180;
-            cardDiv.classList.toggle('rotated-180', newRotated180State);
-            if (newRotated180State) {
-                cardDiv.dataset.rotation = '180';
-            } else {
-                cardDiv.dataset.rotation = cardDiv.dataset.isTapped === 'true' ? '90' : '0';
-            }
-            console.log(`Card ${cardDiv.dataset.cardId} 180-rotated: ${newRotated180State}, rotation: ${cardDiv.dataset.rotation}`);
+            const cardId = cardDiv.dataset.cardId;
+            const playerId = cardDiv.closest('.player-area').dataset.playerId;
+            cardDiv.classList.toggle('rotated-180');
+            syncGameStateToServer({
+                type: 'TOGGLE_ROTATE_180',
+                payload: {
+                    playerId: playerId,
+                    cardId: cardId
+                }
+            });
         });
 
         // RIGHT CLICK: Context menu
@@ -736,11 +1086,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     text: 'Flip Card',
                     action: () => {
-                        const isFacedown = cardDiv.dataset.isFacedown === 'true';
-                        const newFacedownState = !isFacedown;
-                        cardDiv.classList.toggle('facedown', newFacedownState);
-                        cardDiv.dataset.isFacedown = newFacedownState.toString();
-                        console.log(`Card ${cardDiv.dataset.cardId} flipped: ${newFacedownState}`);
+                        const cardId = cardDiv.dataset.cardId;
+                        const playerId = cardDiv.closest('.player-area').dataset.playerId;
+                        const zoneType = cardDiv.closest('.zone').dataset.zoneType;
+
+                        //flip the card in the UI for instant feedback
+                        cardDiv.classList.toggle('facedown');
+
+                        // Tell the server about the action
+                        syncGameStateToServer({
+                            type: 'FLIP_CARD',
+                            payload: {
+                                playerId: playerId,
+                                cardId: cardId,
+                                zoneType: zoneType
+                            }
+                        });
                     }
                 },
                 {
@@ -752,22 +1113,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         const value = parseInt(valueStr);
                         if (isNaN(value)) { alert("Invalid value."); return; }
 
-                        try {
-                            let counters = JSON.parse(cardDiv.dataset.counters || '[]');
-                            const existingCounterIndex = counters.findIndex(c => c.type === type);
-                            if (existingCounterIndex > -1) {
-                                counters[existingCounterIndex].value += value;
-                                if (counters[existingCounterIndex].value === 0 && confirm(`Counter '${type}' is now 0. Remove this counter type?`)) {
-                                    counters.splice(existingCounterIndex, 1);
-                                } else if (counters[existingCounterIndex].value < 0 && confirm(`Counter '${type}' is now negative (${counters[existingCounterIndex].value}). Remove type? (Cancel to keep negative)`)) {
-                                    counters.splice(existingCounterIndex, 1);
-                                }
-                            } else if (value !== 0) {
-                                counters.push({ type, value });
+                        const cardId = cardDiv.dataset.cardId;
+                        const playerId = cardDiv.closest('.player-area').dataset.playerId;
+
+                        syncGameStateToServer({
+                            type: 'MODIFY_COUNTERS',
+                            payload: {
+                                playerId: playerId,
+                                cardId: cardId,
+                                counterType: type,
+                                value: value
                             }
-                            cardDiv.dataset.counters = JSON.stringify(counters);
-                            updateCardCountersDisplay(cardDiv);
-                        } catch (e) { console.error("Error updating counters:", e); alert("Error processing counters."); }
+                        });
                     }
                 },
                 {
@@ -799,7 +1156,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             if (playerId && zoneType) {
                                 // Remove from state
-                                const stateArray = playerPlayZonesState[playerId];
+                                const stateArray = gameState.playerPlayZones[playerId];
                                 if (stateArray) {
                                     const index = stateArray.findIndex(card => card.id === cardData.id);
                                     if (index > -1) {
@@ -857,10 +1214,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const countElement = playerAreaElement.querySelector(`.${zoneType}-zone .card-count`);
 
         if (zoneType === 'deck') {
-            count = playerDecksState[playerId]?.length || 0;
+            count = gameState.playerDecks[playerId]?.length || 0;
             if (countElement) countElement.textContent = count;
         } else if (zoneType === 'hand') {
-            count = playerHandsState[playerId]?.length || 0;
+            count = gameState.playerHands[playerId]?.length || 0;
             const handZoneContainer = playerAreaElement.querySelector(`#hand-zone-${playerId} .cards-in-zone-container`);
             if (handZoneContainer) {
                 const currentCardElements = handZoneContainer.querySelectorAll('.card-on-board');
@@ -875,7 +1232,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } else if (zoneType === 'discard') {
-            count = playerDiscardsState[playerId]?.length || 0;
+            count = gameState.playerDiscards[playerId]?.length || 0;
             if (countElement) countElement.textContent = count;
             const discardCardsContainer = playerAreaElement.querySelector(`#discard-zone-${playerId} .cards-in-zone-container`);
             if (discardCardsContainer) {
@@ -888,7 +1245,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else if (zoneType === 'play') {
-            count = playerPlayZonesState[playerId]?.length || 0;
+            count = gameState.playerPlayZones[playerId]?.length || 0;
 
             const playZoneElem = playerAreaElement.querySelector(`#play-zone-${playerId}`);
             if (playZoneElem) {
@@ -916,301 +1273,290 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const statsBar = playerAreaElement.querySelector('.player-stats');
         if (statsBar) {
-            const handCount = playerHandsState[playerId]?.length || 0;
-            const deckCount = playerDecksState[playerId]?.length || 0;
-            const discardCount = playerDiscardsState[playerId]?.length || 0;
-            const playCountTotal = playerPlayZonesState[playerId]?.length || 0;
+            const handCount = gameState.playerHands[playerId]?.length || 0;
+            const deckCount = gameState.playerDecks[playerId]?.length || 0;
+            const discardCount = gameState.playerDiscards[playerId]?.length || 0;
+            const playCountTotal = gameState.playerPlayZones[playerId]?.length || 0;
             statsBar.textContent = `Hand: ${handCount} | Deck: ${deckCount} | Discard: ${discardCount} | Play: ${playCountTotal}`;
         }
     }
-    function drawCard(playerId) {
-        if (!playerDecksState[playerId] || playerDecksState[playerId].length === 0) {
-            console.log(`Player ${playerId} has no cards left to draw.`);
+
+    async function drawCard(playerId) {
+        console.log("DRAW: Attempting to draw card for player:", playerId);
+        console.log("DRAW: Current deck state:", gameState.playerDecks[playerId]);
+        console.log("DRAW: Current hand state:", gameState.playerHands[playerId]);
+        
+        await syncGameStateToServer({
+            type: 'DRAW_CARD',
+            payload: {
+                playerId: playerId
+            }
+        });
+    }
+
+    // A complete, corrected renderFromGameState function. Use this one.
+    function renderFromGameState() {
+        if (!gameState) {
+            console.error("Render called with null/undefined gameState");
             return;
         }
-        const cardData = playerDecksState[playerId].shift();
-        if (!cardData) {
-            console.error("Tried to draw a card, but cardData was undefined."); return;
+
+        // Always update the current player's context from the latest state
+        const me = gameState.players.find(p => p.id === currentPlayer.id);
+        if (me) {
+            currentPlayer.isHost = me.isHost;
+        } else if (gameState.code) { // Only warn if we are supposed to be in a game
+            console.warn("Current player not found in game state. You may have been disconnected.");
+            // Optionally, force a page reload or redirect to the landing page.
+            // leaveGameButton.click();
+            return;
         }
-        console.log(`drawCard - Player: ${playerId}, cardData being drawn:`, JSON.parse(JSON.stringify(cardData)));
 
-        // Ensure card is face up when drawn
-        cardData.isFacedown = 'false';
-        cardData.isTapped = 'false';
-        // Preserve 180 rotation if it was 180, otherwise set to 0
-        cardData.rotation = (cardData.rotation === '180') ? '180' : '0';
+        if (gameState.gameStarted) {
+            // --- RENDER THE GAME BOARD ---
+            showPage('game-board-page');
+            gameTable.innerHTML = ''; // Clear the entire board for a fresh render
+            boardGameCodeDisplay.textContent = gameState.code;
 
-        if (!playerHandsState[playerId]) playerHandsState[playerId] = [];
-        playerHandsState[playerId].push(cardData);
+            // Determine player order (current player is always at the bottom of the screen)
+            const localPlayerIndex = gameState.players.findIndex(p => p.id === currentPlayer.id);
+            if (localPlayerIndex === -1) return; // Can't render if we're not in the player list
 
-        const playerAreaElement = document.getElementById(`player-area-${playerId}`);
-        if (playerAreaElement) {
-            const handZone = playerAreaElement.querySelector('.hand-zone');
-            const handZoneContainer = handZone?.querySelector('.cards-in-zone-container');
-            if (handZoneContainer) {
-                const placeholder = handZoneContainer.querySelector('.placeholder-text');
-                if (placeholder && playerHandsState[playerId].length >= 1) placeholder.remove();
-                const cardElement = createCardElement(cardData, false);
-                handZoneContainer.appendChild(cardElement);
-            }
-            updateZoneCardCount(playerAreaElement, 'deck');
-            updateZoneCardCount(playerAreaElement, 'hand');
-        } else {
-            console.error(`Player area for ${playerId} not found to draw card into.`);
-        }
-    }
+            const orderedPlayers = [
+                ...gameState.players.slice(localPlayerIndex),
+                ...gameState.players.slice(0, localPlayerIndex)
+            ].reverse();
 
-    function initializeGameBoard(sessionData) {
-        playerDecksState = {};
-        playerHandsState = {};
-        playerDiscardsState = {};
-        playerPlayZonesState = {};
 
-        gameTable.innerHTML = '';
-        gameTable.style.display = 'flex';
+            orderedPlayers.forEach(player => {
+                const isCurrentUser = player.id === currentPlayer.id;
 
-        showPage('game-board-page');
+                const playerArea = document.createElement('div');
+                playerArea.className = 'player-area';
+                playerArea.id = `player-area-${player.id}`;
+                playerArea.dataset.playerId = player.id;
+                playerArea.classList.toggle('current-player-area', isCurrentUser);
+                playerArea.classList.toggle('opponent-player-area', !isCurrentUser);
 
-        boardGameCodeDisplay.textContent = sessionData.code;
+                // Player Info Bar (Name, Stats, Life Counter, Create Token Button)
+                const infoBar = document.createElement('div');
+                infoBar.className = 'player-info-bar';
 
-        const localPlayer = sessionData.players.find(p => p.id === currentPlayer.id);
-        const otherPlayers = sessionData.players.filter(p => p.id !== currentPlayer.id);
-        const orderedPlayers = localPlayer ? [...otherPlayers, localPlayer] : [...otherPlayers];
+                const nameDisplay = document.createElement('span');
+                nameDisplay.className = 'player-name-display';
+                nameDisplay.textContent = `${player.name} ${player.id === currentPlayer.id ? '(You)' : ''}`;
+                infoBar.appendChild(nameDisplay);
 
-        orderedPlayers.forEach(player => {
-            playerDecksState[player.id] = [...player.deck];
-            playerHandsState[player.id] = [];
-            playerDiscardsState[player.id] = [];
-            playerPlayZonesState[player.id] = [];
+                const statsDisplay = document.createElement('span');
+                statsDisplay.className = 'player-stats';
+                infoBar.appendChild(statsDisplay);
 
-            shuffleDeck(player.id);
-
-            const playerArea = document.createElement('div');
-            playerArea.className = 'player-area';
-            playerArea.id = `player-area-${player.id}`;
-            playerArea.dataset.playerId = player.id;
-            playerArea.classList.toggle('current-player-area', player.id === currentPlayer.id);
-            playerArea.classList.toggle('opponent-player-area', player.id !== currentPlayer.id);
-
-            // Player Info Bar (Name, Stats, Life Counter, Create Token Button)
-            const infoBar = document.createElement('div');
-            infoBar.className = 'player-info-bar';
-
-            const nameDisplay = document.createElement('span');
-            nameDisplay.className = 'player-name-display';
-            nameDisplay.textContent = `${player.name} ${player.id === currentPlayer.id ? '(You)' : ''}`;
-            infoBar.appendChild(nameDisplay);
-
-            const statsDisplay = document.createElement('span');
-            statsDisplay.className = 'player-stats';
-            infoBar.appendChild(statsDisplay);
-
-            const lifeCounterDiv = document.createElement('div');
-            lifeCounterDiv.className = 'life-counter';
-            const lifeDisplay = document.createElement('span');
-            lifeDisplay.className = 'life-total';
-            lifeDisplay.textContent = player.life;
-            lifeDisplay.title = `${player.name}'s Life Total`;
-            const decreaseLifeButton = document.createElement('button');
-            decreaseLifeButton.textContent = '−';
-            decreaseLifeButton.className = 'life-button';
-            decreaseLifeButton.addEventListener('click', () => {
-                player.life--;
-                const sessionP = gameSession.players.find(p => p.id === player.id);
-                if (sessionP) sessionP.life = player.life;
+                const lifeCounterDiv = document.createElement('div');
+                lifeCounterDiv.className = 'life-counter';
+                const lifeDisplay = document.createElement('span');
+                lifeDisplay.className = 'life-total';
                 lifeDisplay.textContent = player.life;
-            });
-            const increaseLifeButton = document.createElement('button');
-            increaseLifeButton.textContent = '+';
-            increaseLifeButton.className = 'life-button';
-            increaseLifeButton.addEventListener('click', () => {
-                player.life++;
-                const sessionP = gameSession.players.find(p => p.id === player.id);
-                if (sessionP) sessionP.life = player.life;
-                lifeDisplay.textContent = player.life;
-            });
-            lifeCounterDiv.appendChild(decreaseLifeButton);
-            lifeCounterDiv.appendChild(lifeDisplay);
-            lifeCounterDiv.appendChild(increaseLifeButton);
-            infoBar.appendChild(lifeCounterDiv);
-
-            // Add Energy Counter
-            const energyCounterDiv = document.createElement('div');
-            energyCounterDiv.className = 'life-counter energy-counter';
-            const energyDisplay = document.createElement('span');
-            energyDisplay.className = 'life-total';
-            energyDisplay.textContent = player.energy || 0;
-            energyDisplay.title = `${player.name}'s Energy`;
-            const decreaseEnergyButton = document.createElement('button');
-            decreaseEnergyButton.textContent = '−';
-            decreaseEnergyButton.className = 'life-button';
-            decreaseEnergyButton.addEventListener('click', () => {
-                if (!player.energy) player.energy = 0;
-                player.energy--;
-                const sessionP = gameSession.players.find(p => p.id === player.id);
-                if (sessionP) sessionP.energy = player.energy;
-                energyDisplay.textContent = player.energy;
-            });
-            const increaseEnergyButton = document.createElement('button');
-            increaseEnergyButton.textContent = '+';
-            increaseEnergyButton.className = 'life-button';
-            increaseEnergyButton.addEventListener('click', () => {
-                if (!player.energy) player.energy = 0;
-                player.energy++;
-                const sessionP = gameSession.players.find(p => p.id === player.id);
-                if (sessionP) sessionP.energy = player.energy;
-                energyDisplay.textContent = player.energy;
-            });
-            energyCounterDiv.appendChild(decreaseEnergyButton);
-            energyCounterDiv.appendChild(energyDisplay);
-            energyCounterDiv.appendChild(increaseEnergyButton);
-            infoBar.appendChild(energyCounterDiv);
-
-            if (player.id === currentPlayer.id) {
-                const createTokenButton = document.createElement('button');
-                createTokenButton.textContent = 'Create Token';
-                createTokenButton.className = 'action-button create-token-button';
-                createTokenButton.addEventListener('click', () => {
-                    const rowChoice = prompt("Place token in which row? (1 for Front, 2 for Back)", "1");
-                    let targetRowContainer;
-                    let targetRowType;
-
-                    if (rowChoice === "1") {
-                        targetRowContainer = playerArea.querySelector(`#play-zone-${player.id}-row1`);
-                        targetRowType = 'play-row1';
-                    } else if (rowChoice === "2") {
-                        targetRowContainer = playerArea.querySelector(`#play-zone-${player.id}-row2`);
-                        targetRowType = 'play-row2';
-                    } else if (rowChoice !== null) {
-                        alert("Invalid row choice. Token not created.");
-                        return;
-                    } else {
-                        return;
-                    }
-
-                    if (targetRowContainer) {
-                        const tokenName = prompt("Enter token name/description (e.g., '1/1 Soldier', 'Treasure'):", "Token");
-                        if (tokenName === null) return;
-
-                        const tokenId = `token_${player.id}_${Date.now()}_${globalTokenCounter++}`;
-                        const tokenData = {
-                            id: tokenId,
-                            imageDataUrl: `https://via.placeholder.com/63x88/cccccc/000000?Text=${encodeURIComponent(tokenName.substring(0, 10))}`,
-                            fileName: tokenName || `Generic Token ${globalTokenCounter}`,
-                            isTapped: 'false', isFacedown: 'false', rotation: '0', counters: '[]'
-                        };
-
-                        if (!playerPlayZonesState[player.id]) playerPlayZonesState[player.id] = [];
-                        playerPlayZonesState[player.id].push(tokenData);
-
-                        const tokenElement = createCardElement(tokenData, false);
-                        const placeholder = targetRowContainer.querySelector('.placeholder-text');
-                        if (placeholder) placeholder.remove();
-                        targetRowContainer.appendChild(tokenElement);
-
-                        updateZoneCardCount(playerArea, 'play');
-                        console.log(`Token ${tokenId} created for player ${player.id} in ${targetRowType}`);
-                    } else {
-                        console.error(`Target row container not found for player ${player.id} to create token.`);
-                    }
+                lifeDisplay.title = `${player.name}'s Life Total`;
+                const decreaseLifeButton = document.createElement('button');
+                decreaseLifeButton.textContent = '−';
+                decreaseLifeButton.className = 'life-button';
+                decreaseLifeButton.addEventListener('click', () => {
+                    player.life--;
+                    const sessionP = gameState.players.find(p => p.id === player.id);
+                    if (sessionP) sessionP.life = player.life;
+                    lifeDisplay.textContent = player.life;
                 });
-                infoBar.appendChild(createTokenButton);
-            }
-            playerArea.appendChild(infoBar);
+                const increaseLifeButton = document.createElement('button');
+                increaseLifeButton.textContent = '+';
+                increaseLifeButton.className = 'life-button';
+                increaseLifeButton.addEventListener('click', () => {
+                    player.life++;
+                    const sessionP = gameState.players.find(p => p.id === player.id);
+                    if (sessionP) sessionP.life = player.life;
+                    lifeDisplay.textContent = player.life;
+                });
+                lifeCounterDiv.appendChild(decreaseLifeButton);
+                lifeCounterDiv.appendChild(lifeDisplay);
+                lifeCounterDiv.appendChild(increaseLifeButton);
+                infoBar.appendChild(lifeCounterDiv);
 
-            // Zones Layout
-            const zonesLayout = document.createElement('div');
-            zonesLayout.className = 'zones-layout';
+                // Add Energy Counter
+                const energyCounterDiv = document.createElement('div');
+                energyCounterDiv.className = 'life-counter energy-counter';
+                const energyDisplay = document.createElement('span');
+                energyDisplay.className = 'life-total';
+                energyDisplay.textContent = player.energy || 0;
+                energyDisplay.title = `${player.name}'s Energy`;
+                const decreaseEnergyButton = document.createElement('button');
+                decreaseEnergyButton.textContent = '−';
+                decreaseEnergyButton.className = 'life-button';
+                decreaseEnergyButton.addEventListener('click', () => {
+                    if (!player.energy) player.energy = 0;
+                    player.energy--;
+                    const sessionP = gameState.players.find(p => p.id === player.id);
+                    if (sessionP) sessionP.energy = player.energy;
+                    energyDisplay.textContent = player.energy;
+                });
+                const increaseEnergyButton = document.createElement('button');
+                increaseEnergyButton.textContent = '+';
+                increaseEnergyButton.className = 'life-button';
+                increaseEnergyButton.addEventListener('click', () => {
+                    if (!player.energy) player.energy = 0;
+                    player.energy++;
+                    const sessionP = gameState.players.find(p => p.id === player.id);
+                    if (sessionP) sessionP.energy = player.energy;
+                    energyDisplay.textContent = player.energy;
+                });
+                energyCounterDiv.appendChild(decreaseEnergyButton);
+                energyCounterDiv.appendChild(energyDisplay);
+                energyCounterDiv.appendChild(increaseEnergyButton);
+                infoBar.appendChild(energyCounterDiv);
 
-            // Main Zones Row (Play Area + Side Zones)
-            const mainZonesRow = document.createElement('div');
-            mainZonesRow.className = 'main-zones-row';
+                if (player.id === currentPlayer.id) {
+                    const createTokenButton = document.createElement('button');
+                    createTokenButton.textContent = 'Create Token';
+                    createTokenButton.className = 'action-button create-token-button';
+                    createTokenButton.addEventListener('click', () => {
+                        const rowChoice = prompt("Place token in which row? (1 for Front, 2 for Back)", "1");
+                        let targetRowContainer;
+                        let targetRowType;
 
-            // Play Zone
-            const playZone = document.createElement('div');
-            playZone.className = 'zone play-zone';
-            playZone.id = `play-zone-${player.id}`;
-            playZone.dataset.zoneType = 'play';
+                        if (rowChoice === "1") {
+                            targetRowContainer = playerArea.querySelector(`#play-zone-${player.id}-row1`);
+                            targetRowType = 'play-row1';
+                        } else if (rowChoice === "2") {
+                            targetRowContainer = playerArea.querySelector(`#play-zone-${player.id}-row2`);
+                            targetRowType = 'play-row2';
+                        } else if (rowChoice !== null) {
+                            alert("Invalid row choice. Token not created.");
+                            return;
+                        } else {
+                            return;
+                        }
 
-            const playZoneRow1 = document.createElement('div');
-            playZoneRow1.className = 'play-zone-row cards-in-zone-container';
-            playZoneRow1.id = `play-zone-${player.id}-row1`;
-            playZoneRow1.dataset.zoneType = 'play-row1';
-            playZoneRow1.dataset.ownerPlayerId = player.id;
-            playZoneRow1.innerHTML = `<span class="placeholder-text">Manifest Row</span>`;
-            addDropZoneEventListeners(playZoneRow1, player.id, 'play-row1');
-            playZone.appendChild(playZoneRow1);
+                        if (targetRowContainer) {
+                            const tokenName = prompt("Enter token name/description (e.g., '1/1 Soldier', 'Treasure'):", "Token");
+                            if (tokenName === null) return;
 
-            const playZoneRow2 = document.createElement('div');
-            playZoneRow2.className = 'play-zone-row cards-in-zone-container';
-            playZoneRow2.id = `play-zone-${player.id}-row2`;
-            playZoneRow2.dataset.zoneType = 'play-row2';
-            playZoneRow2.dataset.ownerPlayerId = player.id;
-            playZoneRow2.innerHTML = `<span class="placeholder-text">Aether Row</span>`;
-            addDropZoneEventListeners(playZoneRow2, player.id, 'play-row2');
-            playZone.appendChild(playZoneRow2);
+                            const tokenId = `token_${player.id}_${Date.now()}_${globalTokenCounter++}`;
+                            const tokenData = {
+                                id: tokenId,
+                                imageDataUrl: `https://via.placeholder.com/63x88/cccccc/000000?Text=${encodeURIComponent(tokenName.substring(0, 10))}`,
+                                fileName: tokenName || `Generic Token ${globalTokenCounter}`,
+                                isTapped: 'false', isFacedown: 'false', rotation: '0', counters: '[]'
+                            };
 
-            mainZonesRow.appendChild(playZone);
+                            if (!gameState.playerPlayZones[player.id]) gameState.playerPlayZones[player.id] = [];
+                            gameState.playerPlayZones[player.id].push(tokenData);
 
-            // Side Zones (Deck and Discard)
-            const sideZones = document.createElement('div');
-            sideZones.className = 'side-zones';
-            const deckZone = document.createElement('div');
-            deckZone.className = 'zone deck-zone';
-            deckZone.id = `deck-zone-${player.id}`;
-            deckZone.dataset.zoneType = 'deck';
-            deckZone.title = "Click to draw a card, right-click for deck actions";
-            deckZone.addEventListener('click', () => drawCard(player.id));
-            addDeckManipulationMenu(deckZone, player.id);
-            addDropZoneEventListeners(deckZone, player.id, 'deck');
-            sideZones.appendChild(deckZone);
+                            const cardElement = createCardElement(tokenData, false);
+                            const placeholder = targetRowContainer.querySelector('.placeholder-text');
+                            if (placeholder) placeholder.remove();
+                            targetRowContainer.appendChild(cardElement);
 
-            const discardZone = document.createElement('div');
-            discardZone.className = 'zone discard-zone';
-            discardZone.id = `discard-zone-${player.id}`;
-            discardZone.dataset.zoneType = 'discard';
-            discardZone.innerHTML = `<div class="cards-in-zone-container stacked-cards-display"></div>`;
-            addDropZoneEventListeners(discardZone, player.id, 'discard');
-            addDiscardPileManipulationMenu(discardZone, player.id);
-            sideZones.appendChild(discardZone);
-            mainZonesRow.appendChild(sideZones);
-
-            zonesLayout.appendChild(mainZonesRow);
-
-            // Hand Zone
-            const handZone = document.createElement('div');
-            handZone.className = 'zone hand-zone';
-            handZone.id = `hand-zone-${player.id}`;
-            handZone.dataset.zoneType = 'hand';
-            handZone.innerHTML = `<div class="cards-in-zone-container"><span class="placeholder-text">Hand</span></div>`;
-            addDropZoneEventListeners(handZone, player.id, 'hand');
-            zonesLayout.appendChild(handZone);
-
-            playerArea.appendChild(zonesLayout);
-            gameTable.appendChild(playerArea);
-
-
-            updateZoneCardCount(playerArea, 'deck');
-            updateZoneCardCount(playerArea, 'hand');
-            updateZoneCardCount(playerArea, 'discard');
-            updateZoneCardCount(playerArea, 'play');
-        });
-
-        showPage('game-board-page');
-
-        orderedPlayers.forEach(player => {
-            if (!player || !player.id) return;
-            const startingHandSize = 0;
-            for (let i = 0; i < startingHandSize; i++) {
-                if (playerDecksState[player.id]?.length > 0) {
-                    drawCard(player.id);
-                } else {
-                    break;
+                            updateZoneCardCount(playerArea, 'play');
+                            console.log(`Token ${tokenId} created for player ${player.id} in ${targetRowType}`);
+                        } else {
+                            console.error(`Target row container not found for player ${player.id} to create token.`);
+                        }
+                    });
+                    infoBar.appendChild(createTokenButton);
                 }
-            }
-        });
-        console.log("Game board initialized with two-row play areas.");
+                playerArea.appendChild(infoBar);
+
+                // Zones Layout
+                const zonesLayout = document.createElement('div');
+                zonesLayout.className = 'zones-layout';
+
+                // Main Zones Row (Play Area + Side Zones)
+                const mainZonesRow = document.createElement('div');
+                mainZonesRow.className = 'main-zones-row';
+
+                // Play Zone
+                const playZone = document.createElement('div');
+                playZone.className = 'zone play-zone';
+                playZone.id = `play-zone-${player.id}`;
+                playZone.dataset.zoneType = 'play';
+
+                const playZoneRow1 = document.createElement('div');
+                playZoneRow1.className = 'play-zone-row cards-in-zone-container';
+                playZoneRow1.id = `play-zone-${player.id}-row1`;
+                playZoneRow1.dataset.zoneType = 'play-row1';
+                playZoneRow1.dataset.ownerPlayerId = player.id;
+                playZoneRow1.innerHTML = `<span class="placeholder-text">Manifest Row</span>`;
+                addDropZoneEventListeners(playZoneRow1, player.id, 'play-row1');
+                playZone.appendChild(playZoneRow1);
+
+                const playZoneRow2 = document.createElement('div');
+                playZoneRow2.className = 'play-zone-row cards-in-zone-container';
+                playZoneRow2.id = `play-zone-${player.id}-row2`;
+                playZoneRow2.dataset.zoneType = 'play-row2';
+                playZoneRow2.dataset.ownerPlayerId = player.id;
+                playZoneRow2.innerHTML = `<span class="placeholder-text">Aether Row</span>`;
+                addDropZoneEventListeners(playZoneRow2, player.id, 'play-row2');
+                playZone.appendChild(playZoneRow2);
+
+                mainZonesRow.appendChild(playZone);
+
+                // Side Zones (Deck and Discard)
+                const sideZones = document.createElement('div');
+                sideZones.className = 'side-zones';
+                const deckZone = document.createElement('div');
+                deckZone.className = 'zone deck-zone';
+                deckZone.id = `deck-zone-${player.id}`;
+                deckZone.dataset.zoneType = 'deck';
+                deckZone.innerHTML = `<div class="cards-in-zone-container stacked-cards-display"></div>`;
+                deckZone.title = "Click to draw a card, right-click for deck actions";
+                deckZone.addEventListener('click', () => drawCard(player.id));
+                addDeckManipulationMenu(deckZone, player.id);
+                addDropZoneEventListeners(deckZone, player.id, 'deck');
+                sideZones.appendChild(deckZone);
+
+                const discardZone = document.createElement('div');
+                discardZone.className = 'zone discard-zone';
+                discardZone.id = `discard-zone-${player.id}`;
+                discardZone.dataset.zoneType = 'discard';
+                discardZone.innerHTML = `<div class="cards-in-zone-container stacked-cards-display"></div>`;
+                addDropZoneEventListeners(discardZone, player.id, 'discard');
+                addDiscardPileManipulationMenu(discardZone, player.id);
+                sideZones.appendChild(discardZone);
+                mainZonesRow.appendChild(sideZones);
+
+                zonesLayout.appendChild(mainZonesRow);
+
+                // Hand Zone
+                const handZone = document.createElement('div');
+                handZone.className = 'zone hand-zone';
+                handZone.id = `hand-zone-${player.id}`;
+                handZone.dataset.zoneType = 'hand';
+                handZone.innerHTML = `<div class="cards-in-zone-container"><span class="placeholder-text">Hand</span></div>`;
+                addDropZoneEventListeners(handZone, player.id, 'hand');
+                zonesLayout.appendChild(handZone);
+
+                playerArea.appendChild(zonesLayout);
+                gameTable.appendChild(playerArea);
+
+                updateZoneCardCount(playerArea, 'deck');
+                updateZoneCardCount(playerArea, 'hand');
+                updateZoneCardCount(playerArea, 'discard');
+                updateZoneCardCount(playerArea, 'play');
+            });
+
+            // After creating the structure, populate it with cards and update counts
+            renderGameState(gameState);
+
+        } else {
+            // --- RENDER THE LOBBY ---
+            updateLobbyUI();
+            showPage('lobby-page');
+        }
     }
+
+    // In your Realtime listener, you already have the correct call:
+    // gameChannel.on('postgres_changes', ..., (payload) => {
+    //     gameState = payload.new.game_state;
+    //     renderFromGameState(); // This will now work correctly
+    // });
 
     function addCardToTargetState(cardData, targetPlayerId, targetZoneType) {
         if (!cardData) {
@@ -1230,22 +1576,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         switch (actualTargetZoneTypeForStateResolution) {
             case 'hand':
-                if (!playerHandsState[targetPlayerId]) {
-                    playerHandsState[targetPlayerId] = [];
+                if (!gameState.playerHands[targetPlayerId]) {
+                    gameState.playerHands[targetPlayerId] = [];
                 }
-                targetArray = playerHandsState[targetPlayerId];
+                targetArray = gameState.playerHands[targetPlayerId];
                 break;
             case 'play':
-                if (!playerPlayZonesState[targetPlayerId]) {
-                    playerPlayZonesState[targetPlayerId] = [];
+                if (!gameState.playerPlayZones[targetPlayerId]) {
+                    gameState.playerPlayZones[targetPlayerId] = [];
                 }
-                targetArray = playerPlayZonesState[targetPlayerId];
+                targetArray = gameState.playerPlayZones[targetPlayerId];
                 break;
             case 'discard':
-                if (!playerDiscardsState[targetPlayerId]) {
-                    playerDiscardsState[targetPlayerId] = [];
+                if (!gameState.playerDiscards[targetPlayerId]) {
+                    gameState.playerDiscards[targetPlayerId] = [];
                 }
-                targetArray = playerDiscardsState[targetPlayerId];
+                targetArray = gameState.playerDiscards[targetPlayerId];
                 break;
             default:
                 console.error(
@@ -1264,45 +1610,6 @@ document.addEventListener('DOMContentLoaded', () => {
         targetArray.push(cardData);
         console.log(`addCardToTargetState: Card ${cardData.id} added to player ${targetPlayerId}'s state for zone ${actualTargetZoneTypeForStateResolution} (original target: ${targetZoneType})`);
         return true;
-    }
-
-    function findAndRemoveCardFromSourceState(cardId, sourcePlayerId, sourceZoneType) {
-        let sourceArray;
-        let actualSourceZoneTypeForState = sourceZoneType;
-        if (sourceZoneType === 'play-row1' || sourceZoneType === 'play-row2') {
-            actualSourceZoneTypeForState = 'play';
-        }
-
-        switch (actualSourceZoneTypeForState) {
-            case 'hand':
-                sourceArray = playerHandsState[sourcePlayerId];
-                break;
-            case 'play':
-                sourceArray = playerPlayZonesState[sourcePlayerId];
-                break;
-            case 'discard':
-                sourceArray = playerDiscardsState[sourcePlayerId];
-                break;
-            case 'deck':
-                sourceArray = playerDecksState[sourcePlayerId];
-                break;
-            default:
-                console.error('Unknown source zone type for state:', sourceZoneType, '(mapped to:', actualSourceZoneTypeForState, ')');
-                return null;
-        }
-
-        if (!sourceArray) {
-            console.error(`Source state array not found for player ${sourcePlayerId}, effective zone ${actualSourceZoneTypeForState} (original: ${sourceZoneType})`);
-            return null;
-        }
-
-        const cardIndex = sourceArray.findIndex(card => card.id === cardId);
-        if (cardIndex > -1) {
-            return sourceArray.splice(cardIndex, 1)[0];
-        }
-
-        console.warn(`Card ${cardId} not found in source state array for ${actualSourceZoneTypeForState} (original: ${sourceZoneType}) for player ${sourcePlayerId}`);
-        return null;
     }
 
     // Helper function to insert card into DOM at a specific horizontal position
@@ -1333,7 +1640,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const handZoneContainer = playerAreaElement.querySelector(`#hand-zone-${playerId} .cards-in-zone-container`);
         if (!handZoneContainer) return;
 
-        const currentHandState = playerHandsState[playerId] || [];
+        const currentHandState = gameState.playerHands[playerId] || [];
         // Optimization: if DOM is empty and state is empty, nothing to do.
         if (currentHandState.length === 0 && Array.from(handZoneContainer.querySelectorAll('.card-on-board')).length === 0) return;
 
@@ -1352,7 +1659,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // This scenario should be handled by ensuring addCardToTargetState runs before reorder.
             }
         }
-        playerHandsState[playerId] = newOrderedHandState;
+        gameState.playerHands[playerId] = newOrderedHandState;
     }
 
     // Helper function to reorder the play zone state array based on current DOM order of cards in rows
@@ -1363,7 +1670,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playZoneRow1Container = playerAreaElement.querySelector(`#play-zone-${playerId}-row1`);
         const playZoneRow2Container = playerAreaElement.querySelector(`#play-zone-${playerId}-row2`);
 
-        const currentPlayState = playerPlayZonesState[playerId] || [];
+        const currentPlayState = gameState.playerPlayZones[playerId] || [];
         // Optimization: if DOM is empty and state is empty, nothing to do.
         if (currentPlayState.length === 0 &&
             (!playZoneRow1Container || Array.from(playZoneRow1Container.querySelectorAll('.card-on-board')).length === 0) &&
@@ -1393,7 +1700,7 @@ document.addEventListener('DOMContentLoaded', () => {
         processRow(playZoneRow1Container); // Process Manifest Row first
         processRow(playZoneRow2Container); // Then Aether Row
 
-        playerPlayZonesState[playerId] = newOrderedPlayState;
+        gameState.playerPlayZones[playerId] = newOrderedPlayState;
     }
 
     function addDropZoneEventListeners(zoneElement, ownerPlayerId, zoneType) {
@@ -1417,167 +1724,81 @@ document.addEventListener('DOMContentLoaded', () => {
             zoneElement.classList.remove('drop-target-highlight');
 
             const dataString = event.dataTransfer.getData('application/json');
-            if (!dataString) { console.error("No data transferred on drop!"); return; }
+            if (!dataString) return;
 
             let transferredData;
             try {
                 transferredData = JSON.parse(dataString);
-            } catch (e) { console.error("Failed to parse transferred data on drop:", e, dataString); return; }
+            } catch (e) { console.error("Failed to parse transferred data on drop:", e); return; }
 
-            const { cardId, sourcePlayerId, sourceZoneType, ...originalCardState } = transferredData;
-
-            if (!cardId || !sourcePlayerId || typeof sourceZoneType === 'undefined') {
-                console.error("Incomplete data in drop transfer:", transferredData);
-                return;
-            }
+            const { cardId, sourcePlayerId, sourceZoneType } = transferredData;
+            const targetPlayerId = ownerPlayerId;
+            const targetZoneType = zoneType;
 
             const draggedCardElement = document.querySelector(`.card-on-board[data-card-id="${cardId}"]`);
-            if (!draggedCardElement) { console.error("Dropped card element not found in DOM:", cardId); return; }
+            if (!draggedCardElement) {
+                console.error("Could not find the dragged card element in the DOM.");
+                return; // Early exit if the card element doesn't exist
+            }
 
-            const targetPlayerId = ownerPlayerId;
-            const targetZoneType = zoneType; // This is the specific drop target (e.g. 'play-row1', 'hand')
+            // --- 1. OPTIMISTIC UI UPDATE (The "Best of the Original") ---
+            // This part gives the user instant feedback. We move the DOM element immediately.
+            // We don't touch the local `gameState` object here.
 
-            // Determine the actual DOM container where cards are children
+            // Determine the actual DOM container for cards
             let targetCardsContainer;
-            if (targetZoneType.startsWith('play-row')) { // e.g. 'play-row1', 'play-row2'
-                targetCardsContainer = zoneElement; // The zoneElement (row div) is the direct parent
-            } else if (targetZoneType === 'hand' || targetZoneType === 'discard') {
+            if (targetZoneType.startsWith('play-row')) {
+                targetCardsContainer = zoneElement;
+            } else if (['hand', 'discard'].includes(targetZoneType)) {
                 targetCardsContainer = zoneElement.querySelector('.cards-in-zone-container');
             }
-            // For 'deck', targetCardsContainer is not used for DOM append/insert in the same way.
+            // No container needed for 'deck' as the element is removed
 
-            if (!targetCardsContainer && (targetZoneType === 'hand' || targetZoneType === 'discard' || targetZoneType.startsWith('play-row'))) {
-                console.error("Critical Error: Target cards container for cards not found in drop target zone:", zoneElement, "for zoneType:", targetZoneType);
-                return;
+            if (targetZoneType === 'deck') {
+                draggedCardElement.remove(); // Optimistically remove the card
+            } else if (targetCardsContainer) {
+                // Use your existing helper to insert the card at the right visual position
+                insertCardIntoDOMZone(draggedCardElement, targetCardsContainer, event.clientX);
             }
 
-            const cardData = findAndRemoveCardFromSourceState(cardId, sourcePlayerId, sourceZoneType);
+            // You can even optimistically update card counts if you want,
+            // though the server broadcast will correct it anyway.
 
-            if (cardData) {
-                const cardToMove = {
-                    ...cardData,
-                    isTapped: draggedCardElement.dataset.isTapped || originalCardState.isTapped || 'false',
-                    isFacedown: draggedCardElement.dataset.isFacedown || originalCardState.isFacedown || 'false',
-                    rotation: draggedCardElement.dataset.rotation || originalCardState.rotation || '0',
-                    counters: draggedCardElement.dataset.counters || originalCardState.counters || '[]'
-                };
-
-                let successfulStateUpdate = false;
-
-                if (targetZoneType === 'deck') {
-                    cardToMove.isFacedown = 'true';
-                    cardToMove.isTapped = 'false';
-                    cardToMove.rotation = (cardToMove.rotation === '180' || originalCardState.rotation === '180') ? '180' : '0';
-
-                    if (!playerDecksState[targetPlayerId]) playerDecksState[targetPlayerId] = [];
-                    playerDecksState[targetPlayerId].unshift(cardToMove);
-                    draggedCardElement.remove();
-                    successfulStateUpdate = true;
-                } else if (targetZoneType === 'discard') {
-                    cardToMove.isTapped = 'false';
-                    cardToMove.isFacedown = 'false';
-                    cardToMove.rotation = (cardToMove.rotation === '180' || originalCardState.rotation === '180') ? '180' : '0';
-
-                    if (addCardToTargetState(cardToMove, targetPlayerId, targetZoneType)) {
-                        successfulStateUpdate = true;
-
-                        draggedCardElement.dataset.isTapped = cardToMove.isTapped;
-                        draggedCardElement.dataset.isFacedown = cardToMove.isFacedown;
-                        draggedCardElement.dataset.rotation = cardToMove.rotation;
-                        draggedCardElement.classList.toggle('tapped', false);
-                        draggedCardElement.classList.toggle('facedown', false);
-                        draggedCardElement.classList.toggle('rotated-180', cardToMove.rotation === '180');
-                        if (cardToMove.rotation !== '180') draggedCardElement.classList.remove('rotated-180');
-                        updateCardCountersDisplay(draggedCardElement);
-
-                        if (targetCardsContainer) {
-                            targetCardsContainer.appendChild(draggedCardElement); 
-                        } else {
-                            findAndRemoveCardFromSourceState(cardToMove.id, targetPlayerId, targetZoneType);
-                            addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
-                            successfulStateUpdate = false;
-                        }
-                    }
-                } else { 
-                    if (addCardToTargetState(cardToMove, targetPlayerId, targetZoneType)) {
-                        successfulStateUpdate = true;
-
-                        draggedCardElement.dataset.isTapped = cardToMove.isTapped;
-                        draggedCardElement.dataset.isFacedown = cardToMove.isFacedown;
-                        draggedCardElement.dataset.rotation = cardToMove.rotation;
-                        draggedCardElement.classList.toggle('tapped', cardToMove.isTapped === 'true');
-                        draggedCardElement.classList.toggle('facedown', cardToMove.isFacedown === 'true');
-                        draggedCardElement.classList.remove('rotated-180');
-                        if (cardToMove.rotation === '180') draggedCardElement.classList.add('rotated-180');
-                        updateCardCountersDisplay(draggedCardElement);
-
-                        if (targetCardsContainer) {
-                            insertCardIntoDOMZone(draggedCardElement, targetCardsContainer, event.clientX);
-                        } else {
-                            findAndRemoveCardFromSourceState(cardToMove.id, targetPlayerId, targetZoneType);
-                            addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
-                            successfulStateUpdate = false;
-                        }
-
-                        if (successfulStateUpdate) {
-                            if (targetZoneType === 'hand') {
-                                reorderHandStateBasedOnDOM(targetPlayerId);
-                            } else if (targetZoneType.startsWith('play-row')) {
-                                reorderPlayZoneStateBasedOnDOM(targetPlayerId); 
-                            }
-                        }
+            // --- 2. SEND ACTION TO SERVER (The "Best of Server-as-SoT") ---
+            // Now, we tell the server what the user *intended* to do.
+            // We send a small, specific action, not the entire game state.
+            syncGameStateToServer({
+                type: 'MOVE_CARD',
+                payload: {
+                    cardId: cardId,
+                    source: {
+                        playerId: sourcePlayerId,
+                        zone: sourceZoneType,
+                    },
+                    target: {
+                        playerId: targetPlayerId,
+                        zone: targetZoneType,
+                        dropX: event.clientX
                     }
                 }
+            });
 
-                if (successfulStateUpdate) {
-                    const sourcePlayerArea = document.getElementById(`player-area-${sourcePlayerId}`);
-                    if (sourcePlayerArea) {
-                        const mainSourceZoneForCount = sourceZoneType.startsWith('play-row') ? 'play' : sourceZoneType;
-                        updateZoneCardCount(sourcePlayerArea, mainSourceZoneForCount);
-                        if (sourceZoneType.startsWith('play-row')) updateZoneCardCount(sourcePlayerArea, 'play');
-                    }
-
-                    const targetPlayerAreaElem = document.getElementById(`player-area-${targetPlayerId}`);
-                    if (targetPlayerAreaElem) {
-                        const mainTargetZoneForCount = targetZoneType.startsWith('play-row') ? 'play' : targetZoneType;
-                        updateZoneCardCount(targetPlayerAreaElem, mainTargetZoneForCount);
-                        if (targetZoneType.startsWith('play-row')) updateZoneCardCount(targetPlayerAreaElem, 'play');
-                        if (targetZoneType === 'deck') updateZoneCardCount(targetPlayerAreaElem, 'deck');
-                    }
-                } else {
-                    console.error("Failed to update state or DOM for card move.");
-                    if (cardData) { // Attempt to roll back state if cardData was validly removed
-                        console.warn(`Attempting to add card ${cardData.id} back to source ${sourcePlayerId}'s ${sourceZoneType}.`);
-                        // This is a simplified rollback. Original position in array might be lost.
-                        if (sourceZoneType === 'deck') {
-                            if (!playerDecksState[sourcePlayerId]) playerDecksState[sourcePlayerId] = [];
-                            playerDecksState[sourcePlayerId].unshift(cardData); // Add back to top if from deck
-                        } else {
-                            addCardToTargetState(cardData, sourcePlayerId, sourceZoneType); // Add back to its original logical zone type
-                            // Re-order source state if it was hand/play, as DOM hasn't changed there yet if card element wasn't re-added
-                            if (sourceZoneType === 'hand') reorderHandStateBasedOnDOM(sourcePlayerId);
-                            else if (sourceZoneType.startsWith('play-row')) reorderPlayZoneStateBasedOnDOM(sourcePlayerId);
-                        }
-                        // DOM rollback for the draggedCardElement itself is more complex and usually handled by the browser if drop fails,
-                        // or would require re-appending it to its original parent.
-                        // For now, primary focus is on state consistency.
-                    }
-                }
-            } else {
-                console.error(`Card data for ${cardId} not found in source state or remove failed. Source: ${sourcePlayerId}'s ${sourceZoneType}`);
-            }
+            // The server will process the action, and the Realtime broadcast will
+            // trigger `renderFromGameState` to make the final, authoritative update.
+            // If our optimistic update was correct, the user will see no change.
+            // If it was wrong (e.g., an illegal move), the UI will "snap back" to the correct state.
         });
     }
 
     // Deck Manipulation Functions
     function shuffleDeck(playerId) {
-        if (!playerDecksState[playerId] || playerDecksState[playerId].length === 0) {
+        if (!gameState.playerDecks[playerId] || gameState.playerDecks[playerId].length === 0) {
             console.log(`Player ${playerId} has no cards to shuffle.`);
             return;
         }
 
         // Fisher-Yates shuffle algorithm
-        const deck = playerDecksState[playerId];
+        const deck = gameState.playerDecks[playerId];
         for (let i = deck.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -1596,7 +1817,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addDeckManipulationMenu(deckZone, playerId) {
-               deckZone.addEventListener('contextmenu', (event) => {
+        deckZone.addEventListener('contextmenu', (event) => {
             event.preventDefault();
             const actions = [
                 {
@@ -1621,7 +1842,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function shuffleDiscardPile(playerId) {
-        const discardPile = playerDiscardsState[playerId] || [];
+        const discardPile = gameState.playerDiscards[playerId] || [];
         if (discardPile.length < 2) {
             console.log(`Player ${playerId} has fewer than 2 cards in their discard pile to shuffle.`);
             return;
@@ -1653,7 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function addDiscardPileManipulationMenu(discardZone, playerId) {
         discardZone.addEventListener('contextmenu', (event) => {
             event.preventDefault();
-            const discardPile = playerDiscardsState[playerId] || [];
+            const discardPile = gameState.playerDiscards[playerId] || [];
             if (discardPile.length === 0) {
                 return;
             }
@@ -1859,71 +2080,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function moveCardAndUpdateBoard(cardId, sourcePlayerId, sourceZoneType, targetPlayerId, targetZoneType, positionInTarget = 'end') {
-        const cardData = findAndRemoveCardFromSourceState(cardId, sourcePlayerId, sourceZoneType);
-        if (!cardData) {
-            console.error(`Failed to find/remove card ${cardId} from ${sourcePlayerId}'s ${sourceZoneType}`);
-            return null;
-        }
-
-        // Apply transformations based on target zone
-        if (targetZoneType === 'hand' || targetZoneType === 'discard') {
-            cardData.isFacedown = 'false';
-            cardData.isTapped = 'false';
-            cardData.rotation = (cardData.rotation === '180') ? '180' : '0';
-        } else if (targetZoneType === 'deck') {
-            cardData.isFacedown = 'true';
-            cardData.isTapped = 'false';
-            cardData.rotation = (cardData.rotation === '180') ? '180' : '0';
-        }
-
-        let success = false;
-        if (targetZoneType === 'deck') {
-            if (!playerDecksState[targetPlayerId]) playerDecksState[targetPlayerId] = [];
-            if (positionInTarget === 'top') {
-                playerDecksState[targetPlayerId].unshift(cardData);
-            } else {
-                playerDecksState[targetPlayerId].push(cardData);
+    function moveCardFromModalAction(cardId, sourcePlayerId, sourceZoneType, targetZoneType, positionInTarget = 'end') {
+        // This function no longer manipulates local state. It just tells the server what to do.
+        syncGameStateToServer({
+            type: 'MOVE_CARD_FROM_MODAL',
+            payload: {
+                cardId: cardId,
+                playerId: sourcePlayerId,
+                sourceZone: sourceZoneType,
+                targetZone: targetZoneType,
+                position: positionInTarget
             }
-            success = true;
-        } else {
-            success = addCardToTargetState(cardData, targetPlayerId, targetZoneType);
-        }
-
-        if (success) {
-            const sourcePlayerArea = document.getElementById(`player-area-${sourcePlayerId}`);
-            if (sourcePlayerArea) updateZoneCardCount(sourcePlayerArea, sourceZoneType.startsWith('play-row') ? 'play' : sourceZoneType);
-
-            const targetPlayerArea = document.getElementById(`player-area-${targetPlayerId}`);
-            if (targetPlayerArea) {
-                updateZoneCardCount(targetPlayerArea, targetZoneType.startsWith('play-row') ? 'play' : targetZoneType);
-                if (targetZoneType === 'hand') {
-                    const handZoneContainer = targetPlayerArea.querySelector(`#hand-zone-${targetPlayerId} .cards-in-zone-container`);
-                    if (handZoneContainer) {
-                        const newCardElement = createCardElement(cardData, false);
-                        handZoneContainer.appendChild(newCardElement);
-                    }
-                } else if (targetZoneType === 'discard') {
-                    const discardZoneContainer = targetPlayerArea.querySelector(`#discard-zone-${targetPlayerId} .cards-in-zone-container`);
-                    if (discardZoneContainer) {
-                        const existingEl = discardZoneContainer.querySelector(`.card-on-board[data-card-id="${cardData.id}"]`);
-                        if (existingEl) existingEl.remove();
-                        const newCardElement = createCardElement(cardData, false);
-                        discardZoneContainer.appendChild(newCardElement);
-                    }
-                }
-            }
-            return cardData;
-        } else {
-            console.error(`Failed to move card ${cardId} to ${targetPlayerId}'s ${targetZoneType}. Attempting rollback.`);
-            addCardToTargetState(cardData, sourcePlayerId, sourceZoneType);
-            return null;
-        }
+        });
     }
 
-        function handleViewCardsFromDeck(playerId, viewFromTop, isFullSearch = false) {
+    function handleViewCardsFromDeck(playerId, viewFromTop, isFullSearch = false) {
         ensureViewCardsModalElements();
-        const deck = playerDecksState[playerId] || [];
+        const deck = gameState.playerDecks[playerId] || [];
         if (deck.length === 0) {
             alert("The deck is empty.");
             return;
@@ -2018,7 +2191,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cardThumbClone = cardThumb.cloneNode(true);
             cardItemContainer.appendChild(cardThumbClone);
 
-                        // Add a right-click context menu for card actions
+            // Add a right-click context menu for card actions
             cardItemContainer.addEventListener('contextmenu', (event) => {
                 event.preventDefault();
                 const cardId = card.id;
@@ -2027,43 +2200,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     {
                         text: 'To Hand',
                         action: () => {
-                            if (moveCardAndUpdateBoard(cardId, playerId, 'deck', playerId, 'hand')) {
-                                cardItemContainer.remove();
-                                currentModalCards = currentModalCards.filter(c => c.id !== cardId);
-                            }
+                            moveCardFromModalAction(cardId, playerId, 'deck', 'hand');
+                            cardItemContainer.remove(); // Optimistically remove from modal
                         }
                     },
                     {
                         text: 'To Top of Deck',
                         action: () => {
-                            const actualCard = findAndRemoveCardFromSourceState(cardId, playerId, 'deck');
-                            if (actualCard) {
-                                playerDecksState[playerId].unshift(actualCard);
-                                cardItemContainer.remove();
-                                currentModalCards = currentModalCards.filter(c => c.id !== cardId);
-                                updateZoneCardCount(document.getElementById(`player-area-${playerId}`), 'deck');
-                            }
+                            // OLD: const actualCard = findAndRemoveCardFromSourceState(...) ...
+                            // NEW:
+                            moveCardFromModalAction(cardId, playerId, 'deck', 'deck', 'top');
+                            cardItemContainer.remove(); // Optimistic removal
                         }
                     },
                     {
                         text: 'To Bottom of Deck',
                         action: () => {
-                            const actualCard = findAndRemoveCardFromSourceState(cardId, playerId, 'deck');
-                            if (actualCard) {
-                                playerDecksState[playerId].push(actualCard);
-                                cardItemContainer.remove();
-                                currentModalCards = currentModalCards.filter(c => c.id !== cardId);
-                                updateZoneCardCount(document.getElementById(`player-area-${playerId}`), 'deck');
-                            }
+                            // OLD: const actualCard = findAndRemoveCardFromSourceState(...) ...
+                            // NEW:
+                            moveCardFromModalAction(cardId, playerId, 'deck', 'deck', 'end');
+                            cardItemContainer.remove(); // Optimistic removal
                         }
                     },
                     {
                         text: 'To Discard',
                         action: () => {
-                            if (moveCardAndUpdateBoard(cardId, playerId, 'deck', playerId, 'discard')) {
-                                cardItemContainer.remove();
-                                currentModalCards = currentModalCards.filter(c => c.id !== cardId);
-                            }
+                            // OLD: if (moveCardAndUpdateBoard(cardId, playerId, 'deck', playerId, 'discard')) { ... }
+                            // NEW:
+                            moveCardFromModalAction(cardId, playerId, 'deck', 'discard');
+                            cardItemContainer.remove(); // Optimistic removal
                         }
                     }
                 ];
@@ -2091,14 +2256,14 @@ document.addEventListener('DOMContentLoaded', () => {
         viewCardsModalFooter.appendChild(createFooterButton('Return Remaining to Top (Order Shown)', () => {
             if (currentModalCards.length > 0) {
                 const remainingCardIds = currentModalCards.map(c => c.id);
-                playerDecksState[playerId] = playerDecksState[playerId].filter(c => !remainingCardIds.includes(c.id));
+                gameState.playerDecks[playerId] = gameState.playerDecks[playerId].filter(c => !remainingCardIds.includes(c.id));
                 const cardsToReturn = currentModalCards.map(modalCard => {
                     modalCard.isFacedown = 'true';
                     modalCard.isTapped = 'false';
                     modalCard.rotation = (modalCard.rotation === '180') ? '180' : '0';
                     return modalCard;
                 });
-                playerDecksState[playerId].unshift(...cardsToReturn);
+                gameState.playerDecks[playerId].unshift(...cardsToReturn);
                 if (playerAreaElement) updateZoneCardCount(playerAreaElement, 'deck');
             }
         }));
@@ -2106,14 +2271,14 @@ document.addEventListener('DOMContentLoaded', () => {
         viewCardsModalFooter.appendChild(createFooterButton('Return Remaining to Bottom (Order Shown)', () => {
             if (currentModalCards.length > 0) {
                 const remainingCardIds = currentModalCards.map(c => c.id);
-                playerDecksState[playerId] = playerDecksState[playerId].filter(c => !remainingCardIds.includes(c.id));
+                gameState.playerDecks[playerId] = gameState.playerDecks[playerId].filter(c => !remainingCardIds.includes(c.id));
                 const cardsToReturn = currentModalCards.map(modalCard => {
                     modalCard.isFacedown = 'true';
                     modalCard.isTapped = 'false';
                     modalCard.rotation = (modalCard.rotation === '180') ? '180' : '0';
                     return modalCard;
                 });
-                playerDecksState[playerId].push(...cardsToReturn);
+                gameState.playerDecks[playerId].push(...cardsToReturn);
                 if (playerAreaElement) updateZoneCardCount(playerAreaElement, 'deck');
             }
         }));
@@ -2131,7 +2296,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleViewCardsFromDiscard(playerId) {
         ensureViewCardsModalElements();
-        const discardPile = playerDiscardsState[playerId] || [];
+        const discardPile = gameState.playerDiscards[playerId] || [];
         if (discardPile.length === 0) {
             alert("The discard pile is empty.");
             return;
@@ -2209,27 +2374,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
             cardItemContainer.appendChild(cardThumb);
 
-                        // Add a right-click context menu for card actions
+            // Add a right-click context menu for card actions
             cardItemContainer.addEventListener('contextmenu', (event) => {
                 event.preventDefault();
                 const cardId = card.id;
 
-                const handleMoveAction = (targetZone, deckPosition = 'end') => {
-                    const movedCard = moveCardAndUpdateBoard(cardId, playerId, 'discard', playerId, targetZone, deckPosition);
-                    if (movedCard) {
-                        cardItemContainer.remove();
-                        const discardZoneContainer = document.querySelector(`#discard-zone-${playerId} .cards-in-zone-container`);
-                        const cardElementInDiscard = discardZoneContainer?.querySelector(`.card-on-board[data-card-id="${cardId}"]`);
-                        if (cardElementInDiscard) {
-                            cardElementInDiscard.remove();
-                        }
-                    }
-                };
-
+                // We can't use the old handleMoveAction helper anymore.
                 const actions = [
-                    { text: 'To Hand', action: () => handleMoveAction('hand') },
-                    { text: 'To Top of Deck', action: () => handleMoveAction('deck', 'top') },
-                    { text: 'To Bottom of Deck', action: () => handleMoveAction('deck', 'end') },
+                    {
+                        text: 'To Hand',
+                        action: () => {
+                            moveCardFromModalAction(cardId, playerId, 'discard', 'hand');
+                            cardItemContainer.remove();
+                        }
+                    },
+                    {
+                        text: 'To Top of Deck',
+                        action: () => {
+                            moveCardFromModalAction(cardId, playerId, 'discard', 'deck', 'top');
+                            cardItemContainer.remove();
+                        }
+                    },
+                    {
+                        text: 'To Bottom of Deck',
+                        action: () => {
+                            moveCardFromModalAction(cardId, playerId, 'discard', 'deck', 'end');
+                            cardItemContainer.remove();
+                        }
+                    },
                 ];
 
                 showContextMenu(event, actions);
@@ -2274,4 +2446,5 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.style.setProperty('--card-size', value);
         cardSizeValue.textContent = `${Math.round(value * 100)}%`;
     });
+
 });
